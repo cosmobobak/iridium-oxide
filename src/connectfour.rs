@@ -1,4 +1,7 @@
-use std::{fmt::Display, ops::Index};
+use std::{
+    fmt::{Debug, Display},
+    ops::Index,
+};
 
 use rand::Rng;
 
@@ -9,6 +12,27 @@ type Bitrow = u8;
 const ROWS: usize = 6;
 const COLS: usize = 7;
 const BITROW_MASK: Bitrow = 0b0111_1111;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct C4Move(usize);
+
+impl C4Move {
+    pub const fn new(idx: usize) -> Self {
+        Self(idx)
+    }
+}
+
+impl Debug for C4Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "idx: {}", self.0)
+    }
+}
+
+impl Display for C4Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0 + 1)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Connect4 {
@@ -122,8 +146,7 @@ impl Display for Connect4 {
 }
 
 impl Game for Connect4 {
-    type Move = usize;
-
+    type Move = C4Move;
     type Buffer = MoveBuf;
 
     fn turn(&self) -> i8 {
@@ -140,7 +163,7 @@ impl Game for Connect4 {
         let mut bb = !bb & BITROW_MASK;
 
         while bb != 0 {
-            moves.push(bb.trailing_zeros() as usize);
+            moves.push(C4Move(bb.trailing_zeros() as usize));
             bb &= bb - 1;
         }
     }
@@ -173,30 +196,30 @@ impl Game for Connect4 {
     }
 
     fn push(&mut self, m: Self::Move) {
-        assert!(!self.filled(0, m));
+        assert!(!self.filled(0, m.0));
         let mut row = ROWS;
-        while self.filled(row - 1, m) {
+        while self.filled(row - 1, m.0) {
             row -= 1;
         }
 
         assert!(row > 0 && row - 1 < ROWS);
-        self.board[(self.moves & 1) as usize][row - 1] |= 1 << m;
+        self.board[(self.moves & 1) as usize][row - 1] |= 1 << m.0;
 
         self.moves += 1;
     }
 
     fn pop(&mut self, m: Self::Move) {
-        assert!(self.filled(ROWS, m));
+        assert!(self.filled(ROWS, m.0));
 
         self.moves -= 1;
 
         let mut row = 0;
-        while !self.filled(row, m) {
+        while !self.filled(row, m.0) {
             row += 1;
         }
 
         assert!(row < ROWS);
-        self.board[(self.moves & 1) as usize][row] &= !(1 << m);
+        self.board[(self.moves & 1) as usize][row] &= !(1 << m.0);
     }
 
     fn push_random(&mut self) {
@@ -215,27 +238,27 @@ impl Game for Connect4 {
 
         assert!(bb != 0, "you fucked up");
 
-        self.push(bb.trailing_zeros() as usize);
+        self.push(C4Move(bb.trailing_zeros() as usize));
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MoveBuf {
-    moves: [usize; COLS],
+    moves: [C4Move; COLS],
     n_moves: usize,
 }
 
 impl Default for MoveBuf {
     fn default() -> Self {
         Self {
-            moves: [0; COLS],
+            moves: [C4Move(0); COLS],
             n_moves: 0,
         }
     }
 }
 
-impl MoveBuffer<usize> for MoveBuf {
-    fn iter(&self) -> std::slice::Iter<usize> {
+impl MoveBuffer<C4Move> for MoveBuf {
+    fn iter(&self) -> std::slice::Iter<C4Move> {
         self.moves[..self.n_moves].iter()
     }
 
@@ -247,14 +270,14 @@ impl MoveBuffer<usize> for MoveBuf {
         self.n_moves == 0
     }
 
-    fn push(&mut self, m: usize) {
+    fn push(&mut self, m: C4Move) {
         self.moves[self.n_moves] = m;
         self.n_moves += 1;
     }
 }
 
 impl Index<usize> for MoveBuf {
-    type Output = usize;
+    type Output = C4Move;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.moves[index]

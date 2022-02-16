@@ -18,9 +18,21 @@ pub struct TicTacToe {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TicTacToeMove(usize);
 
+impl TicTacToeMove {
+    pub const fn new(idx: usize) -> Self {
+        Self(idx)
+    }
+}
+
 impl Debug for TicTacToeMove {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "idx: {}", self.0)
+    }
+}
+
+impl Display for TicTacToeMove {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0 + 1)
     }
 }
 
@@ -64,18 +76,6 @@ impl MoveBuffer<TicTacToeMove> for TTTMoveBuf {
     #[inline]
     fn push(&mut self, m: TicTacToeMove) {
         self.data.push(m);
-    }
-}
-
-impl TicTacToeMove {
-    pub const fn new(idx: usize) -> Self {
-        Self(idx)
-    }
-}
-
-impl Display for TicTacToeMove {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
     }
 }
 
