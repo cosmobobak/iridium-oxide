@@ -33,7 +33,7 @@ pub struct MonteCarloTreeSearcher<G: Game> {
     flags: Behaviour,
     side: i8,
     rollouts: u32,
-    start_time: Option<std::time::Instant>,
+    start_time: Option<Instant>,
     tree: SearchTree<G>,
 }
 
@@ -60,7 +60,7 @@ impl<G: Game> MonteCarloTreeSearcher<G> {
     fn limit_reached(&self) -> bool {
         match self.flags.limit {
             Limit::Time(duration) => {
-                let now = std::time::Instant::now();
+                let now = Instant::now();
                 let elapsed = now.duration_since(self.start_time.unwrap());
                 elapsed >= duration
             }
