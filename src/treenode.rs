@@ -1,0 +1,103 @@
+use std::{fmt::Display, ops::Range};
+
+use rand::Rng;
+
+use crate::{
+    constants::{DRAW_SCORE, WIN_SCORE},
+    game::Game,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Node<G: Game> {
+    board: G,
+    children: (usize, usize),
+    parent: Option<usize>,
+
+    wins: i32,
+    visits: u32,
+    perspective: i8, // 1 for max, -1 for min
+}
+
+impl<G: Game> Node<G> {
+    pub fn new(board: G, parent: Option<usize>) -> Self {
+        Self {
+            board,
+            children: (0, 0),
+            parent,
+            wins: 0,
+            visits: 0,
+            perspective: -board.turn(),
+        }
+    }
+
+    pub fn state(&self) -> &G {
+        &self.board
+    }
+
+    pub fn children(&self) -> Range<usize> {
+        self.children.0..self.children.1
+    }
+
+    pub fn parent(&self) -> Option<usize> {
+        self.parent
+    }
+
+    pub fn to_move(&self) -> i8 {
+        self.board.turn()
+    }
+
+    pub fn wins(&self) -> i32 {
+        self.wins
+    }
+
+    pub fn visits(&self) -> u32 {
+        self.visits
+    }
+
+    pub fn win_rate(&self) -> f64 {
+        if self.visits == 0 {
+            0.0
+        } else {
+            f64::from(self.wins) / f64::from(self.visits) / f64::from(WIN_SCORE)
+        }
+    }
+
+    #[inline]
+    pub fn update(&mut self, result: i8) {
+        self.visits += 1;
+        // the whole negative-positive thing really sucks
+        assert!(
+            result == 1 || result == -1 || result == 0,
+            "result holds invalid value: {}",
+            result
+        );
+        assert!(self.perspective == 1 || self.perspective == -1);
+        if result == self.perspective {
+            self.wins += WIN_SCORE;
+        } else if result == 0 {
+            self.wins += DRAW_SCORE;
+        }
+    }
+
+    pub fn set_win_score(&mut self, score: i32) {
+        self.wins = score;
+    }
+
+    pub fn add_children(&mut self, start: usize, count: usize) {
+        self.children = (start, start + count);
+    }
+
+    pub fn has_children(&self) -> bool {
+        self.children.0 < self.children.1
+    }
+
+    pub fn random_child(&self) -> usize {
+        rand::thread_rng().gen_range(self.children())
+    }
+}
+
+impl<G: Game> Display for Node<G> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Node {{ board: {:?}, children: {:?}, parent: {:?}, wins: {}, visits: {}, to_move: {}, win_rate: {} }}", self.board, self.children, self.parent, self.wins, self.visits, self.board.turn(), self.win_rate())
+    }
+}

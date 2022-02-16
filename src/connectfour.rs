@@ -1,0 +1,262 @@
+use std::{fmt::Display, ops::Index};
+
+use rand::Rng;
+
+use crate::game::{Game, MoveBuffer};
+
+type Bitrow = u8;
+
+const ROWS: usize = 6;
+const COLS: usize = 7;
+const BITROW_MASK: Bitrow = 0b0111_1111;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Connect4 {
+    board: [[Bitrow; COLS]; 2],
+    moves: u8,
+}
+
+impl Connect4 {
+    pub const fn new() -> Self {
+        Self {
+            board: [[0; COLS]; 2],
+            moves: 0,
+        }
+    }
+
+    const fn filled(&self, row: usize, col: usize) -> bool {
+        self.board[0][row] & (1 << col) != 0 || self.board[1][row] & (1 << col) != 0
+    }
+
+    const fn player_at(&self, row: usize, col: usize) -> i8 {
+        if self.board[0][row] & (1 << col) != 0 {
+            1
+        } else if self.board[1][row] & (1 << col) != 0 {
+            -1
+        } else {
+            0
+        }
+    }
+
+    const fn probe(&self, row: usize, col: usize) -> bool {
+        self.board[((self.moves & 1) ^ 1) as usize][row] & (1 << col) != 0
+    }
+
+    fn horizontal_eval(&self) -> i8 {
+        for row in 0..ROWS {
+            for bitshift in 0..COLS {
+                if ((self.board[((self.moves + 1) & 1) as usize][row] >> bitshift) & 0b1111)
+                    == 0b1111
+                {
+                    return -self.turn();
+                }
+            }
+        }
+        0
+    }
+
+    fn vertical_eval(&self) -> i8 {
+        for row in 0..ROWS - 3 {
+            for col in 0..COLS {
+                if self.probe(row, col)
+                    && self.probe(row + 1, col)
+                    && self.probe(row + 2, col)
+                    && self.probe(row + 3, col)
+                {
+                    return -self.turn();
+                }
+            }
+        }
+        0
+    }
+
+    fn diag_up_eval(&self) -> i8 {
+        for row in 3..ROWS {
+            for col in 0..COLS - 3 {
+                if self.probe(row, col)
+                    && self.probe(row - 1, col + 1)
+                    && self.probe(row - 2, col + 2)
+                    && self.probe(row - 3, col + 3)
+                {
+                    return -self.turn();
+                }
+            }
+        }
+        0
+    }
+
+    fn diag_down_eval(&self) -> i8 {
+        for row in 0..ROWS - 3 {
+            for col in 0..COLS - 3 {
+                if self.probe(row, col)
+                    && self.probe(row + 1, col + 1)
+                    && self.probe(row + 2, col + 2)
+                    && self.probe(row + 3, col + 3)
+                {
+                    return -self.turn();
+                }
+            }
+        }
+        0
+    }
+}
+
+impl Display for Connect4 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for row in 0..ROWS {
+            for col in 0..COLS {
+                write!(
+                    f,
+                    "{} ",
+                    match self.player_at(row, col) {
+                        1 => 'X',
+                        -1 => '0',
+                        _ => '.',
+                    }
+                )?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
+impl Game for Connect4 {
+    type Move = usize;
+
+    type Buffer = MoveBuf;
+
+    fn turn(&self) -> i8 {
+        if self.moves % 2 == 0 {
+            1
+        } else {
+            -1
+        }
+    }
+
+    fn generate_moves(&self, moves: &mut Self::Buffer) {
+        let bb = self.board[0][0] | self.board[1][0];
+
+        let mut bb = !bb & BITROW_MASK;
+
+        while bb != 0 {
+            moves.push(bb.trailing_zeros() as usize);
+            bb &= bb - 1;
+        }
+    }
+
+    fn is_terminal(&self) -> bool {
+        self.moves == 42
+            || self.horizontal_eval() != 0
+            || self.vertical_eval() != 0
+            || self.diag_up_eval() != 0
+            || self.diag_down_eval() != 0
+    }
+
+    fn evaluate(&self) -> i8 {
+        let h = self.horizontal_eval();
+        if h != 0 {
+            return h;
+        }
+
+        let v = self.vertical_eval();
+        if v != 0 {
+            return v;
+        }
+
+        let du = self.diag_up_eval();
+        if du != 0 {
+            return du;
+        }
+
+        self.diag_down_eval()
+    }
+
+    fn push(&mut self, m: Self::Move) {
+        assert!(!self.filled(0, m));
+        let mut row = ROWS;
+        while self.filled(row - 1, m) {
+            row -= 1;
+        }
+
+        assert!(row > 0 && row - 1 < ROWS);
+        self.board[(self.moves & 1) as usize][row - 1] |= 1 << m;
+
+        self.moves += 1;
+    }
+
+    fn pop(&mut self, m: Self::Move) {
+        assert!(self.filled(ROWS, m));
+
+        self.moves -= 1;
+
+        let mut row = 0;
+        while !self.filled(row, m) {
+            row += 1;
+        }
+
+        assert!(row < ROWS);
+        self.board[(self.moves & 1) as usize][row] &= !(1 << m);
+    }
+
+    fn push_random(&mut self) {
+        let bb = self.board[0][0] | self.board[1][0];
+        let bb = !bb & BITROW_MASK;
+
+        let n_moves = bb.count_ones() as usize;
+
+        let choice = rand::thread_rng().gen_range(0..n_moves);
+
+        let mut bb = bb;
+
+        for _ in 0..choice {
+            bb &= bb - 1;
+        }
+
+        assert!(bb != 0, "you fucked up");
+
+        self.push(bb.trailing_zeros() as usize);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MoveBuf {
+    moves: [usize; COLS],
+    n_moves: usize,
+}
+
+impl Default for MoveBuf {
+    fn default() -> Self {
+        Self {
+            moves: [0; COLS],
+            n_moves: 0,
+        }
+    }
+}
+
+impl MoveBuffer<usize> for MoveBuf {
+    fn iter(&self) -> std::slice::Iter<usize> {
+        self.moves[..self.n_moves].iter()
+    }
+
+    fn len(&self) -> usize {
+        self.n_moves
+    }
+
+    fn is_empty(&self) -> bool {
+        self.n_moves == 0
+    }
+
+    fn push(&mut self, m: usize) {
+        self.moves[self.n_moves] = m;
+        self.n_moves += 1;
+    }
+}
+
+impl Index<usize> for MoveBuf {
+    type Output = usize;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.moves[index]
+    }
+}
