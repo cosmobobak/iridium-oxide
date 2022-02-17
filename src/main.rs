@@ -13,6 +13,7 @@ mod agent;
 mod connectfour;
 mod constants;
 mod game;
+mod elo;
 mod gamerunner;
 mod mcts;
 mod searchtree;
@@ -21,13 +22,21 @@ mod treenode;
 mod uct;
 
 fn main() {
+    use Player::Computer;
+
     println!("iridium-oxide operating at full capacity!");
 
-    let mcts = MonteCarloTreeSearcher::new(Behaviour {
+    let mcts1 = MonteCarloTreeSearcher::new(Behaviour {
         debug: false,
-        readout: true,
-        limit: Limit::Time(Duration::from_millis(100)),
+        readout: false,
+        limit: Limit::Time(Duration::from_millis(10)),
     });
 
-    GameRunner::new(Connect4::new(), Player::Computer(mcts), Player::Human).run();
+    let mcts2 = MonteCarloTreeSearcher::new(Behaviour {
+        debug: false,
+        readout: false,
+        limit: Limit::Time(Duration::from_millis(10)),
+    });
+
+    GameRunner::<Connect4>::new(Computer(mcts1), Computer(mcts2)).play_match(1000);
 }
