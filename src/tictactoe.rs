@@ -109,7 +109,7 @@ impl TicTacToe {
             if self.player_at(y * 3 + x) {
                 'X'
             } else {
-                '0'
+                'O'
             }
         } else {
             '.'
@@ -194,9 +194,17 @@ impl Game for TicTacToe {
 
 impl Display for TicTacToe {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const RED: &str = "\u{001b}[31m";
+        const YELLOW: &str = "\u{001b}[33m";
+        const RESET: &str = "\u{001b}[0m";
         for y in 0..3 {
             for x in 0..3 {
-                write!(f, "{} ", self.char_at(x, y))?;
+                match self.char_at(x, y) {
+                    '.' => write!(f, ". ")?,
+                    'X' => write!(f, "{RED}X{RESET} ")?,
+                    'O' => write!(f, "{YELLOW}O{RESET} ")?,
+                    _ => unreachable!(),
+                }
             }
             writeln!(f)?;
         }

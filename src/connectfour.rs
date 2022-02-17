@@ -125,19 +125,24 @@ impl Connect4 {
     }
 }
 
+impl Default for Connect4 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Display for Connect4 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const RED: &str = "\u{001b}[31m";
+        const YELLOW: &str = "\u{001b}[33m";
+        const RESET: &str = "\u{001b}[0m";
         for row in 0..ROWS {
             for col in 0..COLS {
-                write!(
-                    f,
-                    "{} ",
-                    match self.player_at(row, col) {
-                        1 => 'X',
-                        -1 => '0',
-                        _ => '.',
-                    }
-                )?;
+                match self.player_at(row, col) {
+                    1 => write!(f, "{RED}X{RESET} ")?,
+                    -1 => write!(f, "{YELLOW}O{RESET} ")?,
+                    _ => write!(f, ". ")?,
+                }
             }
             writeln!(f)?;
         }
