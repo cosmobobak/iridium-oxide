@@ -22,21 +22,16 @@ mod treenode;
 mod uct;
 
 fn main() {
-    use Player::Computer;
+    use Player::{Computer, Human};
 
     println!("iridium-oxide operating at full capacity!");
 
     let mcts1 = MonteCarloTreeSearcher::new(Behaviour {
         debug: false,
-        readout: false,
-        limit: Limit::Time(Duration::from_millis(10)),
+        readout: true,
+        limit: Limit::Time(Duration::from_millis(1000)),
     });
 
-    let mcts2 = MonteCarloTreeSearcher::new(Behaviour {
-        debug: false,
-        readout: false,
-        limit: Limit::Time(Duration::from_millis(10)),
-    });
-
-    GameRunner::<Connect4>::new(Computer(mcts1), Computer(mcts2)).play_match(1000);
+    GameRunner::<Connect4>::new(Human, Computer(mcts1)).run();
 }
+

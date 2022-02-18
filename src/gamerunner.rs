@@ -94,6 +94,8 @@ impl<G: Game + Default> GameRunner<G> {
 
         println!("Running a {}-game match...", games);
         let mut results = [0; 3];
+        let mut first_player_wins = 0;
+        let mut second_player_wins = 0;
         for i in 0..games {
             let players = &mut self.players;
             let result = Self::do_match(players, i);
@@ -103,8 +105,17 @@ impl<G: Game + Default> GameRunner<G> {
                 -1 => results[2] += 1,
                 _ => panic!("Invalid result"),
             }
+            match result * if i % 2 == 0 { 1 } else { -1 } {
+                1 => first_player_wins += 1,
+                -1 => second_player_wins += 1,
+                _ => (),
+            }
         }
+        #[allow(clippy::cast_precision_loss)]
+        let first_move_advantage = f64::from(results[1]).mul_add(0.5, f64::from(first_player_wins)) / games as f64;
         println!("wins: {}, draws: {}, losses: {}", results[0], results[1], results[2]);
+        println!("going first resulted in {} wins, {} losses", first_player_wins, second_player_wins);
+        println!("likelihood of winning by going first: {:.0}%", first_move_advantage * 100.0);
         let elo = elo::difference(results[0], results[2], results[1]);
         println!("Elo difference: {:+.1}, error: ±{:.1}", elo.difference, elo.error);
         println!("Test results significant? {}", if elo.difference.abs() < elo.error {
