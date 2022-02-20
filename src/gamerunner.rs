@@ -1,7 +1,8 @@
 use crate::{
     agent::Agent,
+    elo,
     game::{Game, MoveBuffer},
-    mcts::MonteCarloTreeSearcher, elo,
+    mcts::MonteCarloTreeSearcher,
 };
 
 pub enum Player<G: Game> {
@@ -17,12 +18,8 @@ impl<G: Game> Agent<G> for Player<G> {
                 let mut buffer = G::Buffer::default();
                 state.generate_moves(&mut buffer);
                 println!("Your options are:");
-                print!("[");
-                for &m in buffer.iter().take(buffer.len() - 1) {
-                    print!("{}, ", m);
-                }
-                println!("{}]", buffer.iter().last().unwrap());
-                println!("Enter move: ");
+                println!("{}", buffer);
+                print!("Enter move: ");
                 let mut user_input = String::new();
                 std::io::stdin().read_line(&mut user_input).unwrap();
                 let user_input = user_input.trim();
@@ -65,6 +62,9 @@ impl<G: Game + Default> GameRunner<G> {
                 _ => panic!("Invalid turn"),
             };
             state = player.transition(state);
+            if self.do_printout() {
+                println!();
+            }
         }
         if self.do_printout() {
             println!("{}", state);
@@ -112,16 +112,32 @@ impl<G: Game + Default> GameRunner<G> {
             }
         }
         #[allow(clippy::cast_precision_loss)]
-        let first_move_advantage = f64::from(results[1]).mul_add(0.5, f64::from(first_player_wins)) / games as f64;
-        println!("wins: {}, draws: {}, losses: {}", results[0], results[1], results[2]);
-        println!("going first resulted in {} wins, {} losses", first_player_wins, second_player_wins);
-        println!("likelihood of winning by going first: {:.0}%", first_move_advantage * 100.0);
+        let first_move_advantage =
+            f64::from(results[1]).mul_add(0.5, f64::from(first_player_wins)) / games as f64;
+        println!(
+            "wins: {}, draws: {}, losses: {}",
+            results[0], results[1], results[2]
+        );
+        println!(
+            "going first resulted in {} wins, {} losses",
+            first_player_wins, second_player_wins
+        );
+        println!(
+            "likelihood of winning by going first: {:.0}%",
+            first_move_advantage * 100.0
+        );
         let elo = elo::difference(results[0], results[2], results[1]);
-        println!("Elo difference: {:+.1}, error: ±{:.1}", elo.difference, elo.error);
-        println!("Test results significant? {}", if elo.difference.abs() < elo.error {
-            format!("{RED}NO{RESET}")
-        } else {
-            format!("{GREEN}YES{RESET}")
-        });
+        println!(
+            "Elo difference: {:+.1}, error: ±{:.1}",
+            elo.difference, elo.error
+        );
+        println!(
+            "Test results significant? {}",
+            if elo.difference.abs() < elo.error {
+                format!("{RED}NO{RESET}")
+            } else {
+                format!("{GREEN}YES{RESET}")
+            }
+        );
     }
 }

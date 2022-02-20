@@ -20,7 +20,7 @@ pub struct Node<G: Game> {
 
 impl<G: Game> Node<G> {
     pub fn new(board: G, parent: Option<usize>) -> Self {
-        // perspective is set to -turn because what matters is 
+        // perspective is set to -turn because what matters is
         // whether a player wants to "enter" a node, and so if
         // the turn is 1, then the perspective is -1, because
         // this node has just been "chosen" by player -1.
@@ -30,7 +30,7 @@ impl<G: Game> Node<G> {
             parent,
             wins: 0,
             visits: 0,
-            perspective: -board.turn(), 
+            perspective: -board.turn(),
         }
     }
 

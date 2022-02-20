@@ -12,8 +12,8 @@ use crate::{
 mod agent;
 mod connectfour;
 mod constants;
-mod game;
 mod elo;
+mod game;
 mod gamerunner;
 mod mcts;
 mod searchtree;
@@ -34,4 +34,3 @@ fn main() {
 
     GameRunner::<Connect4>::new(Human, Computer(mcts1)).run();
 }
-

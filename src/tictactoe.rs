@@ -38,13 +38,15 @@ impl Display for TicTacToeMove {
 
 #[derive(Debug, Clone)]
 pub struct TTTMoveBuf {
-    data: Vec<TicTacToeMove>,
+    data: [TicTacToeMove; 9],
+    n_moves: usize,
 }
 
 impl Default for TTTMoveBuf {
     fn default() -> Self {
         Self {
-            data: Vec::with_capacity(9),
+            data: [TicTacToeMove(0); 9],
+            n_moves: 0,
         }
     }
 }
@@ -54,6 +56,16 @@ impl Index<usize> for TTTMoveBuf {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.data[index]
+    }
+}
+
+impl Display for TTTMoveBuf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        for m in &self.data[..self.n_moves - 1] {
+            write!(f, "{}, ", m)?;
+        }
+        write!(f, "{}]", self.data[self.n_moves - 1])
     }
 }
 
@@ -75,7 +87,8 @@ impl MoveBuffer<TicTacToeMove> for TTTMoveBuf {
 
     #[inline]
     fn push(&mut self, m: TicTacToeMove) {
-        self.data.push(m);
+        self.data[self.n_moves] = m;
+        self.n_moves += 1;
     }
 }
 
@@ -210,6 +223,12 @@ impl Display for TicTacToe {
         }
 
         Ok(())
+    }
+}
+
+impl Default for TicTacToe {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

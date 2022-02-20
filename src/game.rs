@@ -3,16 +3,16 @@ use std::{
     ops::Index,
 };
 
-pub trait MoveBuffer<Move>: Debug + Default {
+pub trait MoveBuffer<Move>: Debug + Default + Index<usize, Output = Move> + Display {
     fn iter(&self) -> std::slice::Iter<Move>;
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
     fn push(&mut self, m: Move);
 }
 
-pub trait Game: Copy + Eq + Debug + Display {
+pub trait Game: Copy + Eq + Debug + Display + Default {
     type Move: Copy + Eq + Ord + Debug + Display;
-    type Buffer: MoveBuffer<Self::Move> + Index<usize, Output = Self::Move>;
+    type Buffer: MoveBuffer<Self::Move>;
 
     fn turn(&self) -> i8;
     fn generate_moves(&self, moves: &mut Self::Buffer);

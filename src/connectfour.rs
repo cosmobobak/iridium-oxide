@@ -288,3 +288,13 @@ impl Index<usize> for MoveBuf {
         &self.moves[index]
     }
 }
+
+impl Display for MoveBuf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        for m in &self.moves[..self.n_moves - 1] {
+            write!(f, "{}, ", m)?;
+        }
+        write!(f, "{}]", self.moves[self.n_moves - 1])
+    }
+}
