@@ -33,5 +33,5 @@ fn main() {
         limit: Limit::Time(Duration::from_millis(1000)),
     });
 
-    GameRunner::<Connect4>::new(Computer(mcts1.clone()), Computer(mcts1)).run();
+    GameRunner::<Connect4>::new(Computer(mcts1), Human).run();
 }

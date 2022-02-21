@@ -62,9 +62,12 @@ impl<G: Game> SearchTree<G> {
     }
 
     pub fn best_child_of(&self, idx: usize) -> usize {
-        self.nodes[idx]
-            .children()
-            .max_by_key(|&i| self.nodes[i].visits())
+        let children = self.nodes[idx].children();
+        assert!(children.end <= self.nodes.len());
+        // SAFETY: we know that the children are valid indices
+        // because children.end <= self.nodes.len()
+        children
+            .max_by_key(|&i| unsafe { self.nodes.get_unchecked(i).visits() })
             .expect("Node has no children")
     }
 
