@@ -245,6 +245,10 @@ impl Game for Connect4 {
 
         self.push(C4Move(bb.trailing_zeros() as usize));
     }
+
+    fn action_space() -> usize {
+        COLS
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

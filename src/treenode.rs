@@ -46,6 +46,11 @@ impl<G: Game> Node<G> {
         self.parent
     }
 
+    // pub fn orphanise(&mut self) {
+    //     // this method is for a future implementation of tree pruning and compaction.
+    //     self.parent = None;
+    // }
+
     pub fn to_move(&self) -> i8 {
         self.board.turn()
     }

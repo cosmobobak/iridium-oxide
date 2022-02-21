@@ -21,16 +21,17 @@ mod tictactoe;
 mod treenode;
 mod uct;
 
-fn main() {
-    use Player::{Computer, Human};
+#[allow(unused_imports)]
+use Player::{Computer, Human};
 
+fn main() {
     println!("iridium-oxide operating at full capacity!");
 
     let mcts1 = MonteCarloTreeSearcher::new(Behaviour {
         debug: false,
-        readout: true,
+        readout: false,
         limit: Limit::Time(Duration::from_millis(1000)),
     });
 
-    GameRunner::<Connect4>::new(Human, Computer(mcts1)).run();
+    GameRunner::<Connect4>::new(Computer(mcts1.clone()), Computer(mcts1)).run();
 }

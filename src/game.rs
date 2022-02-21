@@ -18,6 +18,7 @@ pub trait Game: Copy + Eq + Debug + Display + Default {
     fn generate_moves(&self, moves: &mut Self::Buffer);
     fn is_terminal(&self) -> bool;
     fn evaluate(&self) -> i8;
+    fn action_space() -> usize;
     fn push(&mut self, m: Self::Move);
     fn pop(&mut self, m: Self::Move);
     fn push_random(&mut self);

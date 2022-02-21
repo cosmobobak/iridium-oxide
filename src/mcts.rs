@@ -7,11 +7,13 @@ use crate::{
     uct,
 };
 
+#[derive(Clone)]
 pub enum Limit {
     Time(Duration),
     Rollouts(u32),
 }
 
+#[derive(Clone)]
 pub struct Behaviour {
     pub debug: bool,
     pub readout: bool,
@@ -29,6 +31,7 @@ impl Default for Behaviour {
     }
 }
 
+#[derive(Clone)]
 pub struct MonteCarloTreeSearcher<G: Game> {
     flags: Behaviour,
     side: i8,
@@ -75,6 +78,9 @@ impl<G: Game> MonteCarloTreeSearcher<G> {
         self.start_time = Some(Instant::now());
 
         loop {
+            if self.flags.readout && self.rollouts % 100_000 == 0 {
+                self.tree.print_root_distribution();
+            }
             if self.flags.debug {
                 println!("looping in SESB, rollouts: {}", self.rollouts);
             }

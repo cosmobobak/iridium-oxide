@@ -5,6 +5,7 @@ use crate::{
     mcts::MonteCarloTreeSearcher,
 };
 
+#[derive(Clone)]
 pub enum Player<G: Game> {
     Human,
     Computer(MonteCarloTreeSearcher<G>),

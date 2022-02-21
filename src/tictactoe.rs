@@ -203,6 +203,10 @@ impl Game for TicTacToe {
         }
         self.push(TicTacToeMove::new(bb.trailing_zeros() as usize));
     }
+
+    fn action_space() -> usize {
+        9
+    }
 }
 
 impl Display for TicTacToe {

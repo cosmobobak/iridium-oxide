@@ -8,4 +8,5 @@ pub const ROOT_IDX: usize = 0;
 pub const INF: i32 = i32::max_value();
 pub const N_INF: i32 = -INF;
 
-pub const EXP_FACTOR: f64 = 10.0;
+pub const EXPLORATION_FACTOR: f64 = 10.0;
+pub const NODE_UNVISITED_VALUE: f64 = f64::MAX;

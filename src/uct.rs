@@ -1,4 +1,4 @@
-use crate::{constants::EXP_FACTOR, game::Game, treenode::Node};
+use crate::{constants::{EXPLORATION_FACTOR, NODE_UNVISITED_VALUE}, game::Game, treenode::Node};
 
 #[derive(Debug, Clone, PartialEq)]
 struct Sortablef64(f64);
@@ -21,19 +21,19 @@ impl Ord for Sortablef64 {
 
 fn ucb1_value(parent_visits: u32, win_count: i32, visits: u32) -> Sortablef64 {
     if visits == 0 {
-        return Sortablef64(f64::MAX);
+        return Sortablef64(NODE_UNVISITED_VALUE);
     }
     let exploitation = f64::from(win_count) / f64::from(visits);
-    let exploration = f64::sqrt(f64::ln(f64::from(parent_visits)) / f64::from(visits)) * EXP_FACTOR;
+    let exploration = f64::sqrt(f64::ln(f64::from(parent_visits)) / f64::from(visits)) * EXPLORATION_FACTOR;
     Sortablef64(exploitation + exploration)
 }
 
 pub fn best<G: Game>(nodes: &[Node<G>], parent_visits: u32, first_index: usize) -> usize {
-    nodes
+    assert!(!nodes.is_empty());
+    let max_idx = nodes
         .iter()
         .enumerate()
         .max_by_key(|(_, node)| ucb1_value(parent_visits, node.wins(), node.visits()))
-        .map(|(idx, _)| idx)
-        .unwrap()
-        + first_index
+        .map(|(idx, _)| idx);
+    unsafe { max_idx.unwrap_unchecked() + first_index }
 }
