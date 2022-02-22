@@ -37,7 +37,7 @@ pub trait Game: Copy + Eq + Debug + Display + Default {
 }
 
 pub trait Vectorisable: Game {
-    fn vectorise_state(&self) -> Vec<u8>;
+    fn vectorise_state(&self) -> Vec<bool>;
     fn index_move(&self, m: Self::Move) -> usize;
     fn action_space() -> usize;
     fn state_vector_dimensions() -> Vec<usize>;

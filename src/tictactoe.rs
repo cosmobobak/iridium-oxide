@@ -210,8 +210,16 @@ impl Vectorisable for TicTacToe {
         9
     }
 
-    fn vectorise_state(&self) -> Vec<u8> {
-        todo!()
+    fn vectorise_state(&self) -> Vec<bool> {
+        let mut v: Vec<bool> = Vec::with_capacity(3 * 3 * 2);
+        
+        for shift in 0..7 {
+            v.push((self.board[1] >> shift) & 1 != 0);
+            v.push((self.board[0] >> shift) & 1 != 0);
+        }
+        
+        assert_eq!(v.len(), 3 * 3 * 2);
+        v
     }
 
     fn index_move(&self, m: Self::Move) -> usize {

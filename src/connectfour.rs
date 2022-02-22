@@ -36,14 +36,14 @@ impl Display for C4Move {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Connect4 {
-    board: [[Bitrow; COLS]; 2],
+    board: [[Bitrow; ROWS]; 2],
     moves: u8,
 }
 
 impl Connect4 {
     pub const fn new() -> Self {
         Self {
-            board: [[0; COLS]; 2],
+            board: [[0; ROWS]; 2],
             moves: 0,
         }
     }
@@ -248,16 +248,12 @@ impl Game for Connect4 {
 }
 
 impl game::Vectorisable for Connect4 {
-    fn vectorise_state(&self) -> Vec<u8> {
-        let mut v = Vec::with_capacity(ROWS * COLS * 2);
-        for &row in &self.board[0] {
-            for shift in 0..7 {
-                v.push((row >> shift) & 1);
-            }
-        }
-        for &row in &self.board[1] {
-            for shift in 0..7 {
-                v.push((row >> shift) & 1);
+    fn vectorise_state(&self) -> Vec<bool> {
+        let mut v: Vec<bool> = Vec::with_capacity(ROWS * COLS * 2);
+        for (&rowl, &rowr) in self.board[0].iter().zip(self.board[1].iter()) {
+            for col_shift in 0..COLS {
+                v.push((rowr >> col_shift) & 1 != 0);
+                v.push((rowl >> col_shift) & 1 != 0);
             }
         }
         assert_eq!(v.len(), ROWS * COLS * 2);
