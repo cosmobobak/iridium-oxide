@@ -7,7 +7,7 @@ use std::{
 
 use rand::Rng;
 
-use crate::game::{Game, MoveBuffer};
+use crate::game::{Game, MoveBuffer, Vectorisable};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TicTacToe {
@@ -203,9 +203,23 @@ impl Game for TicTacToe {
         }
         self.push(TicTacToeMove::new(bb.trailing_zeros() as usize));
     }
+}
 
+impl Vectorisable for TicTacToe {
     fn action_space() -> usize {
         9
+    }
+
+    fn vectorise_state(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn index_move(&self, m: Self::Move) -> usize {
+        m.0
+    }
+
+    fn state_vector_dimensions() -> Vec<usize> {
+        vec![3, 3, 2]
     }
 }
 

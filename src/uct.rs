@@ -1,4 +1,8 @@
-use crate::{constants::{EXPLORATION_FACTOR, NODE_UNVISITED_VALUE}, game::Game, treenode::Node};
+use crate::{
+    constants::{EXPLORATION_FACTOR, NODE_UNVISITED_VALUE},
+    game::Game,
+    treenode::Node,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 struct Sortablef64(f64);
@@ -24,7 +28,8 @@ fn ucb1_value(parent_visits: u32, win_count: i32, visits: u32) -> Sortablef64 {
         return Sortablef64(NODE_UNVISITED_VALUE);
     }
     let exploitation = f64::from(win_count) / f64::from(visits);
-    let exploration = f64::sqrt(f64::ln(f64::from(parent_visits)) / f64::from(visits)) * EXPLORATION_FACTOR;
+    let exploration =
+        f64::sqrt(f64::ln(f64::from(parent_visits)) / f64::from(visits)) * EXPLORATION_FACTOR;
     Sortablef64(exploitation + exploration)
 }
 

@@ -5,7 +5,7 @@ use std::{
 
 use rand::Rng;
 
-use crate::game::{Game, MoveBuffer};
+use crate::game::{self, Game, MoveBuffer};
 
 type Bitrow = u8;
 
@@ -245,9 +245,35 @@ impl Game for Connect4 {
 
         self.push(C4Move(bb.trailing_zeros() as usize));
     }
+}
+
+impl game::Vectorisable for Connect4 {
+    fn vectorise_state(&self) -> Vec<u8> {
+        let mut v = Vec::with_capacity(ROWS * COLS * 2);
+        for &row in &self.board[0] {
+            for shift in 0..7 {
+                v.push((row >> shift) & 1);
+            }
+        }
+        for &row in &self.board[1] {
+            for shift in 0..7 {
+                v.push((row >> shift) & 1);
+            }
+        }
+        assert_eq!(v.len(), ROWS * COLS * 2);
+        v
+    }
+
+    fn index_move(&self, m: Self::Move) -> usize {
+        m.0
+    }
 
     fn action_space() -> usize {
         COLS
+    }
+
+    fn state_vector_dimensions() -> Vec<usize> {
+        vec![ROWS, COLS, 2]
     }
 }
 

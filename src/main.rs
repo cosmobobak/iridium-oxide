@@ -15,6 +15,7 @@ mod constants;
 mod elo;
 mod game;
 mod gamerunner;
+mod iterbits;
 mod mcts;
 mod searchtree;
 mod tictactoe;

@@ -18,7 +18,6 @@ pub trait Game: Copy + Eq + Debug + Display + Default {
     fn generate_moves(&self, moves: &mut Self::Buffer);
     fn is_terminal(&self) -> bool;
     fn evaluate(&self) -> i8;
-    fn action_space() -> usize;
     fn push(&mut self, m: Self::Move);
     fn pop(&mut self, m: Self::Move);
     fn push_random(&mut self);
@@ -34,5 +33,25 @@ pub trait Game: Copy + Eq + Debug + Display + Default {
         } else {
             None
         }
+    }
+}
+
+pub trait Vectorisable: Game {
+    fn vectorise_state(&self) -> Vec<u8>;
+    fn index_move(&self, m: Self::Move) -> usize;
+    fn action_space() -> usize;
+    fn state_vector_dimensions() -> Vec<usize>;
+
+    fn policy_vector(&self, policy: &[u32]) -> Vec<f64> {
+        let mut out = vec![0.0; Self::action_space()];
+        let mut buf = Self::Buffer::default();
+        self.generate_moves(&mut buf);
+        assert_eq!(policy.len(), buf.len());
+        let rollout_sum = f64::from(policy.iter().sum::<u32>());
+        for (i, &m) in buf.iter().enumerate() {
+            let index = self.index_move(m);
+            out[index] = f64::from(policy[i]) / rollout_sum;
+        }
+        out
     }
 }
