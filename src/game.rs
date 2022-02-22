@@ -54,4 +54,11 @@ pub trait Vectorisable: Game {
         }
         out
     }
+
+    fn vectorise_state_u8(&self) -> Vec<u8> {
+        self.vectorise_state()
+            .iter()
+            .map(|&b| if b { 1 } else { 0 })
+            .collect()
+    }
 }
