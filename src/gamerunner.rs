@@ -1,14 +1,16 @@
+use std::fmt::{Display, Formatter, self};
+
 use crate::{
     agent::Agent,
     elo,
-    game::{Game, MoveBuffer},
-    mcts::MonteCarloTreeSearcher,
+    game::{Game, MoveBuffer, Vectorisable},
+    mcts::{MCTS, Behaviour},
 };
 
 #[derive(Clone)]
 pub enum Player<G: Game> {
     Human,
-    Computer(MonteCarloTreeSearcher<G>),
+    Computer(MCTS<G>),
 }
 
 impl<G: Game> Agent<G> for Player<G> {
@@ -140,5 +142,43 @@ impl<G: Game + Default> GameRunner<G> {
                 format!("{GREEN}YES{RESET}")
             }
         );
+    }
+}
+
+pub struct GameData<G: Vectorisable> {
+    pub outcome: i8,
+    pub states: Vec<G>,
+    pub policies: Vec<Vec<f64>>,
+}
+
+impl<G: Vectorisable> GameRunner<G> {
+    pub fn play_training_game(flags: Behaviour) -> GameData<G> {
+        let mut state = G::default();
+        let mut states = Vec::new();
+        let mut policies = Vec::new();
+        let mut engine = MCTS::new(flags);
+        while !state.is_terminal() {
+            let current = state;
+            let new_state = engine.best_next_board(state);
+            let legal_policy = engine.get_tree().root_distribution();
+            let policy = current.policy_vector(&legal_policy);
+            states.push(current);
+            policies.push(policy);
+            state = new_state;
+        }
+        let outcome = state.evaluate();
+        assert_eq!(states.len(), policies.len());
+        GameData {
+            outcome,
+            states,
+            policies,
+        }
+    }
+}
+
+impl<G: Vectorisable> Display for GameData<G> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let _ = f;
+        todo!()
     }
 }

@@ -4,9 +4,9 @@
 use std::time::Duration;
 
 use crate::{
-    connectfour::{Connect4, C4Move},
+    connectfour::Connect4,
     gamerunner::{GameRunner, Player},
-    mcts::{Behaviour, Limit, MonteCarloTreeSearcher}, game::{Vectorisable, Game},
+    mcts::{Behaviour, Limit, MCTS},
 };
 
 mod agent;
@@ -28,11 +28,11 @@ use Player::{Computer, Human};
 fn main() {
     println!("iridium-oxide operating at full capacity!");
 
-    let mcts1 = MonteCarloTreeSearcher::new(Behaviour {
+    let engine = MCTS::new(Behaviour {
         debug: false,
         readout: false,
         limit: Limit::Time(Duration::from_millis(1000)),
     });
 
-    GameRunner::<Connect4>::new(Computer(mcts1), Human).run();
+    GameRunner::<Connect4>::new(Computer(engine), Human).run();
 }

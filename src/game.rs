@@ -38,19 +38,18 @@ pub trait Game: Copy + Eq + Debug + Display + Default {
 
 pub trait Vectorisable: Game {
     fn vectorise_state(&self) -> Vec<bool>;
-    fn index_move(&self, m: Self::Move) -> usize;
+    fn index_move(m: Self::Move) -> usize;
     fn action_space() -> usize;
     fn state_vector_dimensions() -> Vec<usize>;
 
-    fn policy_vector(&self, policy: &[u32]) -> Vec<f64> {
+    fn policy_vector(&self, policy: &[f64]) -> Vec<f64> {
         let mut out = vec![0.0; Self::action_space()];
         let mut buf = Self::Buffer::default();
         self.generate_moves(&mut buf);
         assert_eq!(policy.len(), buf.len());
-        let rollout_sum = f64::from(policy.iter().sum::<u32>());
         for (i, &m) in buf.iter().enumerate() {
-            let index = self.index_move(m);
-            out[index] = f64::from(policy[i]) / rollout_sum;
+            let index = Self::index_move(m);
+            out[index] = policy[i];
         }
         out
     }

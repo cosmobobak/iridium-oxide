@@ -32,7 +32,7 @@ impl Default for Behaviour {
 }
 
 #[derive(Clone)]
-pub struct MonteCarloTreeSearcher<G: Game> {
+pub struct MCTS<G: Game> {
     flags: Behaviour,
     side: i8,
     rollouts: u32,
@@ -40,7 +40,7 @@ pub struct MonteCarloTreeSearcher<G: Game> {
     tree: SearchTree<G>,
 }
 
-impl<G: Game> MonteCarloTreeSearcher<G> {
+impl<G: Game> MCTS<G> {
     pub fn new(flags: Behaviour) -> Self {
         Self {
             flags,

@@ -260,7 +260,7 @@ impl game::Vectorisable for Connect4 {
         v
     }
 
-    fn index_move(&self, m: Self::Move) -> usize {
+    fn index_move(m: Self::Move) -> usize {
         m.0
     }
 

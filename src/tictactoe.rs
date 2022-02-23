@@ -217,12 +217,12 @@ impl Vectorisable for TicTacToe {
             v.push((self.board[1] >> shift) & 1 != 0);
             v.push((self.board[0] >> shift) & 1 != 0);
         }
-        
+
         assert_eq!(v.len(), 3 * 3 * 2);
         v
     }
 
-    fn index_move(&self, m: Self::Move) -> usize {
+    fn index_move(m: Self::Move) -> usize {
         m.0
     }
 
