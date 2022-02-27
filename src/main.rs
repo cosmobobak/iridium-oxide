@@ -6,7 +6,7 @@ use std::time::Duration;
 use crate::{
     connectfour::Connect4,
     gamerunner::{GameRunner, Player},
-    mcts::{Behaviour, Limit, MCTS},
+    mcts::{Behaviour, Limit, MCTS, RolloutPolicy},
 };
 
 mod agent;
@@ -28,11 +28,24 @@ use Player::{Computer, Human};
 fn main() {
     println!("iridium-oxide operating at full capacity!");
 
-    let engine = MCTS::new(Behaviour {
+    let limit = Limit::Time(Duration::from_millis(200));
+    // let limit = Limit::Rollouts(10_000);
+
+    let engine1 = MCTS::new(Behaviour {
         debug: false,
         readout: false,
-        limit: Limit::Time(Duration::from_millis(1000)),
+        limit,
+        threads: 1,
+        rollout_policy: RolloutPolicy::Decisive,
     });
 
-    GameRunner::<Connect4>::new(Computer(engine), Human).run();
+    let engine2 = MCTS::new(Behaviour {
+        debug: false,
+        readout: false,
+        limit,
+        threads: 1,
+        rollout_policy: RolloutPolicy::Random,
+    });
+
+    GameRunner::<Connect4>::new(Computer(engine1), Computer(engine2)).play_match(100);
 }
