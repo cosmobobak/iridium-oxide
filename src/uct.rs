@@ -4,41 +4,30 @@ use crate::{
     treenode::Node,
 };
 
-#[derive(Debug, Clone, PartialEq)]
-struct Sortablef64(f64);
-
-impl Eq for Sortablef64 {}
-
-impl PartialOrd for Sortablef64 {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
-
-impl Ord for Sortablef64 {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0
-            .partial_cmp(&other.0)
-            .expect("Sortablef64::cmp found NaN")
-    }
-}
-
-fn ucb1_value(parent_visits: u32, win_count: i32, visits: u32) -> Sortablef64 {
+#[inline]
+fn ucb1_value(parent_visits: u32, win_count: i32, visits: u32) -> f64 {
     if visits == 0 {
-        return Sortablef64(NODE_UNVISITED_VALUE);
+        return NODE_UNVISITED_VALUE;
     }
     let exploitation = f64::from(win_count) / f64::from(visits);
     let exploration =
-        f64::sqrt(f64::ln(f64::from(parent_visits)) / f64::from(visits)) * EXPLORATION_FACTOR;
-    Sortablef64(exploitation + exploration)
+        ((f64::from(parent_visits)).ln() / f64::from(visits)).sqrt() * EXPLORATION_FACTOR;
+    exploitation + exploration
 }
 
+#[inline]
 pub fn best<G: Game>(nodes: &[Node<G>], parent_visits: u32, first_index: usize) -> usize {
     assert!(!nodes.is_empty());
-    let max_idx = nodes
-        .iter()
-        .enumerate()
-        .max_by_key(|(_, node)| ucb1_value(parent_visits, node.wins(), node.visits()))
-        .map(|(idx, _)| idx);
-    unsafe { max_idx.unwrap_unchecked() + first_index }
+    let first_node = unsafe { nodes.get_unchecked(0) };
+    let mut max_idx = 0;
+    let mut max_val = ucb1_value(parent_visits, first_node.wins(), first_node.visits());
+
+    for (idx, node) in nodes.iter().enumerate().skip(1) {
+        let val = ucb1_value(parent_visits, node.wins(), node.visits());
+        if val > max_val {
+            max_idx = idx;
+            max_val = val;
+        }
+    }
+    max_idx + first_index
 }
