@@ -14,13 +14,7 @@ const COLS: usize = 7;
 const BITROW_MASK: Bitrow = 0b0111_1111;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct C4Move(usize);
-
-impl C4Move {
-    pub const fn new(idx: usize) -> Self {
-        Self(idx)
-    }
-}
+pub struct C4Move(pub usize);
 
 impl Debug for C4Move {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -62,6 +56,7 @@ impl Connect4 {
         }
     }
 
+    #[inline]
     const fn probe(&self, row: usize, col: usize) -> bool {
         self.board[((self.moves & 1) ^ 1) as usize][row] & (1 << col) != 0
     }
