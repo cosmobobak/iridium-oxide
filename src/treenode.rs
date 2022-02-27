@@ -82,9 +82,14 @@ impl<G: Game> Node<G> {
         );
         assert!(self.perspective == 1 || self.perspective == -1);
         if result == self.perspective {
+            // rollout was a win for us
             self.wins += WIN_SCORE;
         } else if result == 0 {
+            // rollout was a draw
             self.wins += DRAW_SCORE;
+        } else {
+            // rollout was a loss for us
+            // no-op, because LOSS_SCORE = 0.
         }
     }
 
