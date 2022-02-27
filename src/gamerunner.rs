@@ -1,10 +1,13 @@
-use std::fmt::{Display, Formatter, self};
+use std::{
+    fmt::{self, Display, Formatter},
+    io::Write,
+};
 
 use crate::{
     agent::Agent,
     elo,
     game::{Game, MoveBuffer, Vectorisable},
-    mcts::{MCTS, Behaviour},
+    mcts::{Behaviour, MCTS, SearchResults},
 };
 
 #[derive(Clone)]
@@ -100,6 +103,8 @@ impl<G: Game + Default> GameRunner<G> {
         let mut first_player_wins = 0;
         let mut second_player_wins = 0;
         for i in 0..games {
+            print!(" Game {}/{}    \r", i + 1, games);
+            std::io::stdout().flush().unwrap();
             let players = &mut self.players;
             let result = Self::do_match(players, i);
             match result {
@@ -114,6 +119,7 @@ impl<G: Game + Default> GameRunner<G> {
                 _ => (),
             }
         }
+        println!("{}", RESET);
         #[allow(clippy::cast_precision_loss)]
         let first_move_advantage =
             f64::from(results[1]).mul_add(0.5, f64::from(first_player_wins)) / games as f64;
@@ -159,12 +165,18 @@ impl<G: Vectorisable> GameRunner<G> {
         let mut engine = MCTS::new(flags);
         while !state.is_terminal() {
             let current = state;
-            let new_state = engine.best_next_board(state);
-            let legal_policy = engine.get_tree().root_distribution();
+            let SearchResults { 
+                rollout_distribution, 
+                new_node, 
+                new_node_idx: _, 
+                rollouts,
+                win_rate: _,
+            } = engine.search(state);
+            let legal_policy = rollout_distribution.into_iter().map(|rs| f64::from(rs) / f64::from(rollouts)).collect::<Vec<_>>();
             let policy = current.policy_vector(&legal_policy);
             states.push(current);
             policies.push(policy);
-            state = new_state;
+            state = new_node;
         }
         let outcome = state.evaluate();
         assert_eq!(states.len(), policies.len());

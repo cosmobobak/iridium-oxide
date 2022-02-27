@@ -12,17 +12,45 @@ use crate::{
 #[derive(Clone)]
 pub struct SearchTree<G: Game> {
     pub nodes: Vec<Node<G>>,
+    capacity: usize,
+    rollouts: u32,
 }
 
 impl<G: Game> SearchTree<G> {
     pub fn new() -> Self {
         Self {
             nodes: Vec::with_capacity(MAX_NODEPOOL_SIZE),
+            capacity: MAX_NODEPOOL_SIZE,
+            rollouts: 0,
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            nodes: Vec::with_capacity(capacity),
+            capacity,
+            rollouts: 0,
         }
     }
 
     pub fn root(&self) -> &Node<G> {
         self.nodes.get(ROOT_IDX).expect("SearchTree is empty")
+    }
+
+    pub fn inc_rollouts(&mut self) {
+        self.rollouts += 1;
+    }
+
+    pub fn rollouts(&self) -> u32 {
+        self.rollouts
+    }
+
+    pub fn root_rollout_distribution(&self) -> Vec<u32> {
+        self
+            .root()
+            .children()
+            .map(|idx| self.nodes[idx].visits())
+            .collect::<Vec<_>>()
     }
 
     pub fn root_distribution(&self) -> Vec<f64> {
@@ -61,7 +89,7 @@ impl<G: Game> SearchTree<G> {
         self.nodes.push(Node::new(root, None));
     }
 
-    pub fn best_child_of(&self, idx: usize) -> usize {
+    pub fn best_child_by_visits(&self, idx: usize) -> usize {
         let children = self.nodes[idx].children();
         assert!(children.end <= self.nodes.len());
         // SAFETY: we know that the children are valid indices
@@ -73,13 +101,14 @@ impl<G: Game> SearchTree<G> {
 
     pub fn expand(&mut self, idx: usize) {
         let start = self.nodes.len();
-        let node = &mut self.nodes[idx];
+        let node = self.nodes.get_mut(idx).expect("Node does not exist");
         assert!(!node.has_children(), "Node already has children");
-        let mut moves = G::Buffer::default();
+
+        let mut move_buffer = G::Buffer::default();
         let board = *node.state();
-        board.generate_moves(&mut moves);
-        for m in moves.iter() {
-            if self.nodes.len() == MAX_NODEPOOL_SIZE {
+        board.generate_moves(&mut move_buffer);
+        for m in move_buffer.iter() {
+            if self.nodes.len() == self.capacity {
                 println!("{}", self);
                 panic!("SearchTree full, aborting...");
             }
@@ -87,8 +116,11 @@ impl<G: Game> SearchTree<G> {
             child_board.push(*m);
             self.nodes.push(Node::new(child_board, Some(idx)));
         }
-        let node = &mut self.nodes[idx]; // makes borrowchk happy
-        node.add_children(start, moves.len());
+        // SAFETY: we have already accessed this location in the vector
+        // and we do not reduce the size of the vector between the accesses.
+        // The only reason that we are re-accessing at all is to satisfy borrowchk.
+        let node = unsafe { self.nodes.get_unchecked_mut(idx) };
+        node.add_children(start, move_buffer.len());
     }
 
     fn write_tree(
@@ -100,7 +132,10 @@ impl<G: Game> SearchTree<G> {
         if depth == 0 {
             return Ok(());
         }
-        if self.nodes[idx].visits() == 0 {
+
+        let node = self.nodes.get(idx).expect("Node does not exist");
+
+        if node.visits() == 0 {
             return Ok(());
         }
 
@@ -114,12 +149,12 @@ impl<G: Game> SearchTree<G> {
         writeln!(
             f,
             "visits: {}, wins: {}, winrate: {:.2}, to_move: {}",
-            self.nodes[idx].visits(),
-            self.nodes[idx].wins(),
-            self.nodes[idx].win_rate(),
-            self.nodes[idx].to_move()
+            node.visits(),
+            node.wins(),
+            node.win_rate(),
+            node.to_move()
         )?;
-        for child in self.nodes[idx].children() {
+        for child in node.children() {
             self.write_tree(f, depth - 1, child)?;
         }
         Ok(())
