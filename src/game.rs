@@ -10,7 +10,7 @@ pub trait MoveBuffer<Move>: Debug + Default + Index<usize, Output = Move> + Disp
     fn push(&mut self, m: Move);
 }
 
-pub trait Game: Copy + Eq + Debug + Display + Default {
+pub trait Game: Copy + Eq + Debug + Display + Default + Send + Sync {
     type Move: Copy + Eq + Ord + Debug + Display;
     type Buffer: MoveBuffer<Self::Move>;
 
@@ -55,9 +55,17 @@ pub trait Vectorisable: Game {
     }
 
     fn vectorise_state_u8(&self) -> Vec<u8> {
-        self.vectorise_state()
-            .iter()
-            .map(|&b| if b { 1 } else { 0 })
-            .collect()
+        let v = self.vectorise_state();
+
+        // This is the proper no-copy, unsafe way of "transmuting" a `Vec`, without relying on the
+        // data layout. Instead of literally calling `transmute`, we perform a pointer cast, but
+        // in terms of converting the original inner type (`bool`) to the new one (`u8`),
+        // this has all the same caveats. Besides the information provided above, also consult the
+        // [`from_raw_parts`] documentation.
+        unsafe {
+            // Ensure the original vector is not dropped.
+            let mut v = std::mem::ManuallyDrop::new(v);
+            Vec::from_raw_parts(v.as_mut_ptr().cast::<u8>(), v.len(), v.capacity())
+        }
     }
 }
