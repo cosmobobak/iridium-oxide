@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 
-use std::time::{Duration, Instant};
+use std::{time::{Duration, Instant}, fmt::Display};
 
 use rayon::iter::IntoParallelRefMutIterator;
 
@@ -28,7 +28,7 @@ pub struct Behaviour {
     pub debug: bool,
     pub readout: bool,
     pub limit: Limit,
-    pub threads: usize,
+    pub root_parallelism_count: usize,
     pub rollout_policy: RolloutPolicy,
 }
 
@@ -39,9 +39,23 @@ impl Default for Behaviour {
             debug: true,
             readout: true,
             limit: Rollouts(10_000),
-            threads: 1,
+            root_parallelism_count: 1,
             rollout_policy: RolloutPolicy::Random,
         }
+    }
+}
+
+impl Display for Behaviour {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "Behaviour {{ debug: {}, readout: {}, limit: {:?}, root_parallelism_count: {}, rollout_policy: {:?} }}",
+            self.debug,
+            self.readout,
+            self.limit,
+            self.root_parallelism_count,
+            self.rollout_policy
+        )
     }
 }
 
@@ -75,7 +89,7 @@ impl<G: Game> MCTS<G> {
                 side: 1,
                 start_time: None,
             },
-            trees: vec![SearchTree::with_capacity(MAX_NODEPOOL_SIZE / flags.threads); flags.threads],
+            trees: vec![SearchTree::with_capacity(MAX_NODEPOOL_SIZE / flags.root_parallelism_count); flags.root_parallelism_count],
         }
     }
 
@@ -95,25 +109,29 @@ impl<G: Game> MCTS<G> {
     }
 
     pub fn search(&mut self, board: G) -> SearchResults<G> {
-        self.trees.iter_mut().for_each(|tree| tree.setup(board));
-
         self.search_info.start_time = Some(Instant::now());
 
-        assert_eq!(self.trees.len(), self.search_info.flags.threads);
-        let info = self.search_info;
+        self.trees.iter_mut().for_each(|tree| tree.setup(board));
+
+        assert_eq!(self.trees.len(), self.search_info.flags.root_parallelism_count);
         self.trees.par_iter_mut().for_each(|tree| {
-            Self::do_treesearch(info, tree);
+            Self::do_treesearch(self.search_info, tree);
         });
 
-        let rollout_distributions = self.trees.iter().map(SearchTree::root_rollout_distribution);
+        let rollout_distributions = self.trees.iter().map(SearchTree::root_rollout_distribution).collect::<Vec<_>>();
 
-        let fused_distribution = rollout_distributions.reduce(|a, b| {
-            assert_eq!(a.len(), b.len());
-            a.iter()
-                .zip(b.iter())
-                .map(|(a, b)| a + b)
-                .collect::<Vec<_>>()
-        }).unwrap();
+        if self.search_info.flags.debug {
+            for dist in &rollout_distributions {
+                println!("{:?}", dist);
+            }
+        }
+
+        let mut fused_distribution = vec![0; rollout_distributions[0].len()];
+        for dist in &rollout_distributions {
+            for (i, &count) in dist.iter().enumerate() {
+                fused_distribution[i] += count;
+            }
+        }
 
         let best = fused_distribution
             .iter()
@@ -127,6 +145,11 @@ impl<G: Game> MCTS<G> {
         let avg_win_rate = self.trees.iter().map(|tree| tree.root().win_rate()).sum::<f64>() / len_as_f64;
 
         let total_rollouts = self.trees.iter().map(SearchTree::rollouts).sum::<u32>();
+        if let Limit::Rollouts(x) = self.search_info.flags.limit {
+            #[allow(clippy::cast_possible_truncation)]
+            let expected_rollouts = x * self.search_info.flags.root_parallelism_count as u32;
+            assert_eq!(total_rollouts, expected_rollouts);
+        }
 
         let first_tree = self.trees.first().unwrap();
         let root_children = first_tree.root().children();
@@ -261,6 +284,7 @@ impl<G: Game> MCTS<G> {
         idx
     }
 
+    #[inline]
     fn random_rollout(playout_board: G) -> i8 {
         let mut board = playout_board;
         while !board.is_terminal() {
@@ -269,6 +293,7 @@ impl<G: Game> MCTS<G> {
         board.evaluate()
     }
 
+    #[inline]
     fn decisive_rollout(playout_board: G) -> i8 {
         let mut board = playout_board;
         while !board.is_terminal() {

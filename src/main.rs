@@ -28,22 +28,22 @@ use Player::{Computer, Human};
 fn main() {
     println!("iridium-oxide operating at full capacity!");
 
-    let limit = Limit::Time(Duration::from_millis(200));
-    // let limit = Limit::Rollouts(10_000);
+    // let limit = Limit::Time(Duration::from_millis(300));
+    let limit = Limit::Rollouts(10_000);
 
     let engine1 = MCTS::new(Behaviour {
-        debug: false,
-        readout: false,
+        debug: true,
+        readout: true,
         limit,
-        threads: 1,
+        root_parallelism_count: 1,
         rollout_policy: RolloutPolicy::Decisive,
     });
 
     let engine2 = MCTS::new(Behaviour {
-        debug: false,
-        readout: false,
+        debug: true,
+        readout: true,
         limit,
-        threads: 1,
+        root_parallelism_count: 1,
         rollout_policy: RolloutPolicy::Random,
     });
 

@@ -87,6 +87,7 @@ impl<G: Game> SearchTree<G> {
     pub fn setup(&mut self, root: G) {
         self.clear();
         self.nodes.push(Node::new(root, None));
+        self.rollouts = 0;
     }
 
     pub fn best_child_by_visits(&self, idx: usize) -> usize {
