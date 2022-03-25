@@ -10,7 +10,8 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Node<G: Game> {
     board: G,
-    children: (usize, usize),
+    first_child: usize,
+    n_children: usize,
     parent: Option<usize>,
 
     wins: i32,
@@ -24,13 +25,15 @@ impl<G: Game> Node<G> {
         // whether a player wants to "enter" a node, and so if
         // the turn is 1, then the perspective is -1, because
         // this node has just been "chosen" by player -1.
+        let perspective = -board.turn();
         Self {
             board,
-            children: (0, 0),
+            first_child: 0,
+            n_children: 0,
             parent,
             wins: 0,
             visits: 0,
-            perspective: -board.turn(),
+            perspective,
         }
     }
 
@@ -39,7 +42,7 @@ impl<G: Game> Node<G> {
     }
 
     pub fn children(&self) -> Range<usize> {
-        self.children.0..self.children.1
+        self.first_child..self.first_child + self.n_children
     }
 
     pub fn parent(&self) -> Option<usize> {
@@ -98,11 +101,12 @@ impl<G: Game> Node<G> {
     }
 
     pub fn add_children(&mut self, start: usize, count: usize) {
-        self.children = (start, start + count);
+        self.first_child = start;
+        self.n_children = count;
     }
 
     pub fn has_children(&self) -> bool {
-        self.children.0 < self.children.1
+        self.n_children > 0
     }
 
     pub fn random_child(&self) -> usize {
@@ -112,6 +116,6 @@ impl<G: Game> Node<G> {
 
 impl<G: Game> Display for Node<G> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Node {{ board: {:?}, children: {:?}, parent: {:?}, wins: {}, visits: {}, to_move: {}, win_rate: {} }}", self.board, self.children, self.parent, self.wins, self.visits, self.board.turn(), self.win_rate())
+        write!(f, "Node {{ board: {:?}, children: {:?}, parent: {:?}, wins: {}, visits: {}, to_move: {}, win_rate: {} }}", self.board, self.children(), self.parent, self.wins, self.visits, self.board.turn(), self.win_rate())
     }
 }

@@ -1,12 +1,11 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(dead_code)]
 
-use std::time::Duration;
+
 
 use crate::{
-    connectfour::Connect4,
     gamerunner::{GameRunner, Player},
-    mcts::{Behaviour, Limit, MCTS, RolloutPolicy},
+    mcts::{Behaviour, Limit, RolloutPolicy}, connectfour::{Connect4},
 };
 
 mod agent;
@@ -21,6 +20,8 @@ mod searchtree;
 mod tictactoe;
 mod treenode;
 mod uct;
+mod gomoku;
+mod datageneration;
 
 #[allow(unused_imports)]
 use Player::{Computer, Human};
@@ -28,24 +29,18 @@ use Player::{Computer, Human};
 fn main() {
     println!("iridium-oxide operating at full capacity!");
 
-    // let limit = Limit::Time(Duration::from_millis(300));
-    let limit = Limit::Rollouts(10_000);
+    let limit = Limit::Rollouts(100_000);
 
-    let engine1 = MCTS::new(Behaviour {
-        debug: true,
-        readout: true,
-        limit,
-        root_parallelism_count: 1,
-        rollout_policy: RolloutPolicy::Decisive,
-    });
-
-    let engine2 = MCTS::new(Behaviour {
-        debug: true,
-        readout: true,
+    let config = Behaviour {
+        debug: false,
+        readout: false,
         limit,
         root_parallelism_count: 1,
         rollout_policy: RolloutPolicy::Random,
-    });
+        exp_factor: 10.0,
+    };
+    
+    let data = GameRunner::<Connect4>::play_training_game(config);
 
-    GameRunner::<Connect4>::new(Computer(engine1), Computer(engine2)).play_match(100);
+    println!("{:?}", data);
 }

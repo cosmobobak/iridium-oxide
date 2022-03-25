@@ -7,7 +7,7 @@ use std::{
 
 use rand::Rng;
 
-use crate::game::{Game, MoveBuffer, Vectorisable};
+use crate::{game::{Game, MoveBuffer}, datageneration::{Vectorisable, StateVector}};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TicTacToe {
@@ -89,6 +89,10 @@ impl MoveBuffer<TicTacToeMove> for TTTMoveBuf {
     fn push(&mut self, m: TicTacToeMove) {
         self.data[self.n_moves] = m;
         self.n_moves += 1;
+    }
+
+    fn capacity(&self) -> usize {
+        self.data.len()
     }
 }
 
@@ -206,20 +210,21 @@ impl Game for TicTacToe {
 }
 
 impl Vectorisable for TicTacToe {
+
     fn action_space() -> usize {
         9
     }
 
-    fn vectorise_state(&self) -> Vec<bool> {
-        let mut v: Vec<bool> = Vec::with_capacity(3 * 3 * 2);
+    fn vectorise_state(&self) -> StateVector {
+        let mut v: Vec<u8> = Vec::with_capacity(3 * 3 * 2);
 
         for shift in 0..7 {
-            v.push((self.board[1] >> shift) & 1 != 0);
-            v.push((self.board[0] >> shift) & 1 != 0);
+            v.push(((self.board[1] >> shift) & 1) as u8);
+            v.push(((self.board[0] >> shift) & 1) as u8);
         }
 
         assert_eq!(v.len(), 3 * 3 * 2);
-        v
+        StateVector { data: v }
     }
 
     fn index_move(m: Self::Move) -> usize {

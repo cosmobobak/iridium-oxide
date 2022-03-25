@@ -1,13 +1,10 @@
-use std::{
-    fmt::{self, Display, Formatter},
-    io::Write,
-};
+use std::io::Write;
 
 use crate::{
     agent::Agent,
     elo,
-    game::{Game, MoveBuffer, Vectorisable},
-    mcts::{Behaviour, MCTS, SearchResults},
+    game::{Game, MoveBuffer},
+    mcts::MCTS,
 };
 
 #[derive(Clone)]
@@ -25,18 +22,24 @@ impl<G: Game> Agent<G> for Player<G> {
                 state.generate_moves(&mut buffer);
                 println!("Your options are:");
                 println!("{}", buffer);
-                print!("Enter move: ");
-                let mut user_input = String::new();
-                std::io::stdin().read_line(&mut user_input).unwrap();
-                let user_input = user_input.trim();
-                let user_move = *buffer
-                    .iter()
-                    .find(|&&m| format!("{}", m) == user_input)
-                    .expect("Invalid move");
+                let user_move = loop {
+                    print!("Enter move: ");
+                    std::io::stdout().flush().unwrap();
+                    let mut user_input = String::new();
+                    std::io::stdin().read_line(&mut user_input).unwrap();
+                    let user_input = user_input.trim().to_uppercase();
+                    let needle = buffer
+                        .iter()
+                        .find(|&&m| format!("{}", m) == user_input);
+                    if let Some(needle) = needle {
+                        break *needle;
+                    }
+                };
+                
                 state.push(user_move);
                 state
             }
-            Player::Computer(agent) => agent.best_next_board(state),
+            Player::Computer(agent) => agent.best_next_board(&state),
         }
     }
 }
@@ -57,7 +60,11 @@ impl<G: Game + Default> GameRunner<G> {
     }
 
     pub fn run(&mut self) {
-        let mut state = G::default();
+        self.run_with(G::default());
+    }
+
+    pub fn run_with(&mut self, state: G) {
+        let mut state = state;
         while !state.is_terminal() {
             if self.do_printout() {
                 println!("{}", state);
@@ -148,49 +155,5 @@ impl<G: Game + Default> GameRunner<G> {
                 format!("{GREEN}YES{RESET}")
             }
         );
-    }
-}
-
-pub struct GameData<G: Vectorisable> {
-    pub outcome: i8,
-    pub states: Vec<G>,
-    pub policies: Vec<Vec<f64>>,
-}
-
-impl<G: Vectorisable> GameRunner<G> {
-    pub fn play_training_game(flags: Behaviour) -> GameData<G> {
-        let mut state = G::default();
-        let mut states = Vec::new();
-        let mut policies = Vec::new();
-        let mut engine = MCTS::new(flags);
-        while !state.is_terminal() {
-            let current = state;
-            let SearchResults { 
-                rollout_distribution, 
-                new_node, 
-                new_node_idx: _, 
-                rollouts,
-                win_rate: _,
-            } = engine.search(state);
-            let legal_policy = rollout_distribution.into_iter().map(|rs| f64::from(rs) / f64::from(rollouts)).collect::<Vec<_>>();
-            let policy = current.policy_vector(&legal_policy);
-            states.push(current);
-            policies.push(policy);
-            state = new_node;
-        }
-        let outcome = state.evaluate();
-        assert_eq!(states.len(), policies.len());
-        GameData {
-            outcome,
-            states,
-            policies,
-        }
-    }
-}
-
-impl<G: Vectorisable> Display for GameData<G> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let _ = f;
-        todo!()
     }
 }

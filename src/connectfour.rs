@@ -5,7 +5,7 @@ use std::{
 
 use rand::Rng;
 
-use crate::game::{self, Game, MoveBuffer};
+use crate::{game::{Game, MoveBuffer}, datageneration::{StateVector, Vectorisable}};
 
 type Bitrow = u8;
 
@@ -242,17 +242,19 @@ impl Game for Connect4 {
     }
 }
 
-impl game::Vectorisable for Connect4 {
-    fn vectorise_state(&self) -> Vec<bool> {
-        let mut v: Vec<bool> = Vec::with_capacity(ROWS * COLS * 2);
+impl Vectorisable for Connect4 {
+    fn vectorise_state(&self) -> StateVector {
+        let mut v: Vec<u8> = Vec::with_capacity(ROWS * COLS * 2);
+
         for (&rowl, &rowr) in self.board[0].iter().zip(self.board[1].iter()) {
             for col_shift in 0..COLS {
-                v.push((rowr >> col_shift) & 1 != 0);
-                v.push((rowl >> col_shift) & 1 != 0);
+                v.push((rowr >> col_shift) & 1);
+                v.push((rowl >> col_shift) & 1);
             }
         }
+
         assert_eq!(v.len(), ROWS * COLS * 2);
-        v
+        StateVector { data: v }
     }
 
     fn index_move(m: Self::Move) -> usize {
@@ -299,6 +301,10 @@ impl MoveBuffer<C4Move> for MoveBuf {
     fn push(&mut self, m: C4Move) {
         self.moves[self.n_moves] = m;
         self.n_moves += 1;
+    }
+
+    fn capacity(&self) -> usize {
+        self.moves.len()
     }
 }
 

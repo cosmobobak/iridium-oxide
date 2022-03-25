@@ -1,5 +1,5 @@
 use std::{
-    fmt::Display,
+    fmt::{Display, self},
     ops::{Index, IndexMut},
 };
 
@@ -8,6 +8,34 @@ use crate::{
     game::{Game, MoveBuffer},
     treenode::Node,
 };
+
+/// The structure of a `SearchTree` is as follows:
+/// │            None
+/// │              ▲
+/// │              │
+/// │              │
+/// │              │    ┌─────────────────┬──────────────────┐
+/// │              │   ▼                 │                  │
+/// │         ┌────┼─────────────┬────────┼─────────┬────────┼─────────┬──────────────────┬────
+/// │         │    │             │        │         │        │         │                  │
+/// │         │  Option<usize>   │  Option<usize>   │  Option<usize>   │  Option<usize>   │
+/// │         │      Parent      │      Parent      │      Parent      │      Parent      │
+/// │         │                  │                  │                  │                  │
+/// │  nodes: ├──────────────────┼──────────────────┼──────────────────┼──────────────────┤ ... array continues this way ==>
+/// │         │                  │                  │                  │                  │
+/// │         │     Children     │     Children     │     Children     │     Children     │
+/// │         │  [usize, usize)  │  [usize, usize)  │  [usize, usize)  │  [usize, usize)  │
+/// │         │     │      │     │                  │                  │                  │
+/// │         └─────┼──────┼─────┴──────────────────┴──────────────────┴──────────────────┴────
+/// │               │      │     ▲       ▲                           ▲        ▲
+/// │ Left-hand side│      │     │        │                            │         │
+/// │ points to the │      │     └────────┼──────────────┬─────────────┘         │
+/// │ first child.  │      │              │   [The range left..right]            │
+/// │               └──────┼──────────────┘                                      │
+/// │                      │                                                     │
+/// │                      └─────────────────────────────────────────────────────┘
+/// │                         Right-hand side points to one after the last child.
+/// │
 
 #[derive(Clone)]
 pub struct SearchTree<G: Game> {
@@ -64,20 +92,22 @@ impl<G: Game> SearchTree<G> {
         counts
     }
 
-    pub fn print_root_distribution(&self) {
+    pub fn show_root_distribution(&self) -> Result<String, fmt::Error> {
+        use std::fmt::Write;
+        let mut buf = String::new();
         let counts = self.root_distribution();
         if counts.is_empty() {
-            println!("No moves yet searched.");
-            return;
+            return Ok("No moves yet searched.".to_string())
         }
         let mut buffer = G::Buffer::default();
         self.root().state().generate_moves(&mut buffer);
         assert_eq!(buffer.len(), counts.len());
-        print!("[");
+        write!(buf, "[")?;
         for (&m, &count) in buffer.iter().zip(counts.iter()) {
-            print!("{}: {:.0}% ", m, count * 100.0);
+            write!(buf, "{}: {:.0}% ", m, count * 100.0)?;
         }
-        println!("]");
+        write!(buf, "]")?;
+        Ok(buf)
     }
 
     pub fn clear(&mut self) {
@@ -106,14 +136,14 @@ impl<G: Game> SearchTree<G> {
         assert!(!node.has_children(), "Node already has children");
 
         let mut move_buffer = G::Buffer::default();
-        let board = *node.state();
+        let board = node.state().clone();
         board.generate_moves(&mut move_buffer);
         for m in move_buffer.iter() {
             if self.nodes.len() == self.capacity {
                 println!("{}", self);
                 panic!("SearchTree full, aborting...");
             }
-            let mut child_board = board;
+            let mut child_board = board.clone();
             child_board.push(*m);
             self.nodes.push(Node::new(child_board, Some(idx)));
         }
@@ -167,6 +197,14 @@ impl<G: Game> SearchTree<G> {
 
     pub fn get_mut(&mut self, idx: usize) -> Option<&mut Node<G>> {
         self.nodes.get_mut(idx)
+    }
+
+    pub unsafe fn get_unchecked(&self, idx: usize) -> &Node<G> {
+        self.nodes.get_unchecked(idx)
+    }
+
+    pub unsafe fn get_unchecked_mut(&mut self, idx: usize) -> &mut Node<G> {
+        self.nodes.get_unchecked_mut(idx)
     }
 
     // fn mark_least_visited(&mut self, visit_threshold: u32) {

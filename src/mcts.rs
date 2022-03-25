@@ -11,25 +11,31 @@ use crate::{
     uct,
 };
 
+/// Determines whether we limit the search by time or by number of nodes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Limit {
     Time(Duration),
     Rollouts(u32),
 }
 
+/// The policy to use when selecting moves during rollouts.
+/// `Random` will select a random move from the available moves.
+/// `Decisive` will try to choose an immediate win (if one exists), otherwise it will select a random move.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RolloutPolicy {
     Random,
     Decisive
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A struct containing all configuration parameters for the MCTS algorithm.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Behaviour {
     pub debug: bool,
     pub readout: bool,
     pub limit: Limit,
     pub root_parallelism_count: usize,
     pub rollout_policy: RolloutPolicy,
+    pub exp_factor: f64,
 }
 
 impl Default for Behaviour {
@@ -41,6 +47,7 @@ impl Default for Behaviour {
             limit: Rollouts(10_000),
             root_parallelism_count: 1,
             rollout_policy: RolloutPolicy::Random,
+            exp_factor: 1.0,
         }
     }
 }
@@ -59,6 +66,7 @@ impl Display for Behaviour {
     }
 }
 
+/// A struct containing the results of an MCTS search.
 pub struct SearchResults<G: Game> {
     pub rollout_distribution: Vec<u32>,
     pub new_node: G,
@@ -67,13 +75,17 @@ pub struct SearchResults<G: Game> {
     pub win_rate: f64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Information for the MCTS search, including both static config and particular search state.
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct SearchInfo {
     pub flags: Behaviour,
     pub side: i8,
     pub start_time: Option<Instant>,
 }
 
+/// The MCTS search engine.
+/// Contains both the search tree(s) and the search state.
+/// There may be multiple trees if the search is parallelised.
 #[derive(Clone)]
 #[allow(clippy::upper_case_acronyms)]
 pub struct MCTS<G: Game> {
@@ -108,14 +120,14 @@ impl<G: Game> MCTS<G> {
         }
     }
 
-    pub fn search(&mut self, board: G) -> SearchResults<G> {
+    pub fn search(&mut self, board: &G) -> SearchResults<G> {
         self.search_info.start_time = Some(Instant::now());
 
-        self.trees.iter_mut().for_each(|tree| tree.setup(board));
+        self.trees.iter_mut().for_each(|tree| tree.setup(board.clone()));
 
         assert_eq!(self.trees.len(), self.search_info.flags.root_parallelism_count);
-        self.trees.par_iter_mut().for_each(|tree| {
-            Self::do_treesearch(self.search_info, tree);
+        self.trees.par_iter_mut().enumerate().for_each(|(id, tree)| {
+            Self::do_treesearch(id, self.search_info, tree);
         });
 
         let rollout_distributions = self.trees.iter().map(SearchTree::root_rollout_distribution).collect::<Vec<_>>();
@@ -154,7 +166,7 @@ impl<G: Game> MCTS<G> {
         let first_tree = self.trees.first().unwrap();
         let root_children = first_tree.root().children();
         let new_node_idx = best + root_children.start;
-        let new_node = *first_tree[new_node_idx].state();
+        let new_node = first_tree[new_node_idx].state().clone();
 
         SearchResults {
             rollout_distribution: fused_distribution,
@@ -165,7 +177,7 @@ impl<G: Game> MCTS<G> {
         }
     }
 
-    pub fn best_next_board(&mut self, board: G) -> G {
+    pub fn best_next_board(&mut self, board: &G) -> G {
         let SearchResults { 
             rollout_distribution, 
             new_node, 
@@ -199,31 +211,30 @@ impl<G: Game> MCTS<G> {
         new_node
     }
 
-    fn do_treesearch(search_info: SearchInfo, tree: &mut SearchTree<G>) {
-        loop {
-            // if self.flags.readout && self.rollouts % 100_000 == 0 {
-            //     tree.print_root_distribution();
-            // }
-            // if self.flags.debug {
-            //     println!("looping in SESB, rollouts: {}", self.rollouts);
-            // }
+    fn do_treesearch(id: usize, search_info: SearchInfo, tree: &mut SearchTree<G>) {
+        while !Self::limit_reached(&search_info, tree.rollouts()) {
+            if search_info.flags.readout && tree.rollouts() % 10_000 == 0 {
+                print!("Search from tree {id}: ");
+                print!("{}", tree.show_root_distribution().unwrap());
+                println!(" rollouts: {}", tree.rollouts());
+            }
+            if search_info.flags.debug {
+                println!("looping in SESB, rollouts: {}", tree.rollouts());
+            }
             Self::select_expand_simulate_backpropagate(&search_info, tree);
             tree.inc_rollouts();
-            if Self::limit_reached(&search_info, tree.rollouts()) {
-                break;
-            }
         }
     }
 
     fn select_expand_simulate_backpropagate(search_info: &SearchInfo, tree: &mut SearchTree<G>) {
-        let promising_node_idx = Self::select(ROOT_IDX, tree);
+        let promising_node_idx = Self::select(ROOT_IDX, tree, search_info);
         let promising_node = &tree[promising_node_idx];
 
         if !promising_node.state().is_terminal() {
             tree.expand(promising_node_idx);
         }
-
-        let promising_node = &tree[promising_node_idx]; // makes borrowchk happy
+ 
+        let promising_node = unsafe { tree.get_unchecked(promising_node_idx) }; // makes borrowchk happy
         let node_to_explore = if promising_node.has_children() {
             promising_node.random_child()
         } else {
@@ -236,17 +247,20 @@ impl<G: Game> MCTS<G> {
     }
 
     fn backprop(node_idx: usize, winner: i8, tree: &mut SearchTree<G>) {
-        let mut node = tree.get_mut(node_idx);
-        while let Some(inner) = node {
-            inner.update(winner);
-            let parent_idx = inner.parent();
-            node = parent_idx.and_then(|idx| tree.get_mut(idx));
+        let mut node = tree.get_mut(node_idx).expect("called backprop on root");
+        loop {
+            node.update(winner);
+            if let Some(parent_idx) = node.parent() {
+                node = &mut tree[parent_idx]; // this could be get_unchecked, but it feels dangerous
+            } else {
+                break;
+            }
         }
     }
 
     fn simulate(search_info: &SearchInfo, node_idx: usize, tree: &mut SearchTree<G>) -> i8 {
         let node = &tree[node_idx];
-        let playout_board = *node.state();
+        let playout_board = node.state().clone();
 
         // test for immediate loss
         let status = playout_board.evaluate();
@@ -269,7 +283,7 @@ impl<G: Game> MCTS<G> {
         }
     }
 
-    fn select(root_idx: usize, tree: &mut SearchTree<G>) -> usize {
+    fn select(root_idx: usize, tree: &mut SearchTree<G>, search_info: &SearchInfo) -> usize {
         let mut idx = root_idx;
         let mut node = &tree[idx];
         while node.has_children() {
@@ -277,8 +291,8 @@ impl<G: Game> MCTS<G> {
             idx = uct::best(
                 &tree.nodes[children.clone()],
                 node.visits(),
-                children.start,
-            );
+                search_info.flags.exp_factor
+            ) + children.start;
             node = &tree[idx];
         }
         idx
@@ -300,7 +314,7 @@ impl<G: Game> MCTS<G> {
             let mut buffer = G::Buffer::default();
             board.generate_moves(&mut buffer);
             for &m in buffer.iter() {
-                let mut copy = board;
+                let mut copy = board.clone();
                 copy.push(m);
                 let evaluation = copy.evaluate();
                 if evaluation != 0 {
