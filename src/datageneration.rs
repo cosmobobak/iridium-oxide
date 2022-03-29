@@ -1,4 +1,4 @@
-use std::{fmt::{self, Display, Formatter, Debug}, ops::Add};
+use std::{fmt::{self, Display, Formatter, Debug}, ops::Add, fs::File};
 
 use crate::{
     game::{Game, MoveBuffer},
@@ -23,6 +23,19 @@ pub struct Entry {
     pub policy: PolicyVector,
 }
 
+impl Display for Entry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{},{},", self.outcome, self.move_count)?;
+        for &i in &self.state.data {
+            write!(f, "{},", i)?;
+        }
+        for &i in &self.policy.data {
+            write!(f, "{},", i)?;
+        }
+        Ok(())
+    }
+}
+
 impl Debug for Entry {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "outcome: {}, move_count: {}, \nstate: \n {:?}, \npolicy: \n {:?}", self.outcome, self.move_count, self.state.data, self.policy.data)
@@ -30,6 +43,7 @@ impl Debug for Entry {
 }
 
 pub trait Vectorisable: Game {
+    fn csv_header() -> String;
     fn vectorise_state(&self) -> StateVector;
     fn index_move(m: Self::Move) -> usize;
     fn action_space() -> usize;
@@ -56,6 +70,23 @@ pub struct GameData {
     pub entries: Vec<Entry>,
     pub state_dimensions: Vec<usize>,
     pub action_space: usize,
+}
+
+impl GameData {
+    pub fn save<G: Vectorisable>(&self, filename: &str) -> Result<(), std::io::Error> {
+        use std::io::Write;
+        match File::create(filename) {
+            Ok(mut file) => {
+                let header = G::csv_header();
+                writeln!(file, "{header}")?;
+                for entry in &self.entries {
+                    writeln!(file, "{}", entry)?;
+                }
+                Ok(())
+            }
+            Err(e) => panic!("could not create data save file: {e}"),
+        }
+    }
 }
 
 impl<G: Vectorisable> GameRunner<G> {
@@ -125,10 +156,10 @@ impl Add for GameData {
 
 impl Display for GameData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "GameData record:")?;
-        writeln!(f, "State dimensions: {:?}", self.state_dimensions)?;
-        writeln!(f, "Action space: {}", self.action_space)?;
-        writeln!(f, "Number of states: {}", self.entries.len())
+        for entry in &self.entries {
+            writeln!(f, "{}", entry)?;
+        }
+        Ok(())
     }
 }
 

@@ -268,6 +268,10 @@ impl Vectorisable for Connect4 {
     fn state_vector_dimensions() -> Vec<usize> {
         vec![ROWS, COLS, 2]
     }
+
+    fn csv_header() -> String {
+        "outcome,moves,board,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,policy,-,-,-,-,-,-".to_string()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

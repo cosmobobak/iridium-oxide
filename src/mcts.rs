@@ -213,7 +213,7 @@ impl<G: Game> MCTS<G> {
 
     fn do_treesearch(id: usize, search_info: SearchInfo, tree: &mut SearchTree<G>) {
         while !Self::limit_reached(&search_info, tree.rollouts()) {
-            if search_info.flags.readout && tree.rollouts() % 10_000 == 0 {
+            if search_info.flags.debug && tree.rollouts() % 10_000 == 0 {
                 print!("Search from tree {id}: ");
                 print!("{}", tree.show_root_distribution().unwrap());
                 println!(" rollouts: {}", tree.rollouts());

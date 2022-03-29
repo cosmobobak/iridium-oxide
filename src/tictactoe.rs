@@ -234,6 +234,10 @@ impl Vectorisable for TicTacToe {
     fn state_vector_dimensions() -> Vec<usize> {
         vec![3, 3, 2]
     }
+
+    fn csv_header() -> String {
+        "outcome,moves,board,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,policy,-,-,-,-,-,-,-,-".to_string()
+    }
 }
 
 impl Display for TicTacToe {
