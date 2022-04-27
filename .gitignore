@@ -1,2 +1,5 @@
 /target
 *.csv
+*.pyc
+*.h5
+*tfevents*
