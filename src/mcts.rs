@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::{
-    constants::{MAX_NODEPOOL_MEM, N_INF, ROOT_IDX},
+    constants::{MAX_NODEPOOL_MEM, N_INF, ROOT_IDX, WIN_SCORE, DEFAULT_EXP_FACTOR},
     game::{Game, MoveBuffer},
     searchtree::SearchTree,
     treenode::Node,
@@ -57,7 +57,7 @@ impl Default for Behaviour {
             limit: Rollouts(100_000),
             root_parallelism_count: 1,
             rollout_policy: RolloutPolicy::Random,
-            exp_factor: 1.0,
+            exp_factor: DEFAULT_EXP_FACTOR,
             training: false,
         }
     }
@@ -253,13 +253,13 @@ impl<G: Game> MCTS<G> {
 
     fn do_treesearch(id: usize, search_info: SearchInfo, tree: &mut SearchTree<G>) {
         while !Self::limit_reached(&search_info, tree.rollouts()) {
-            if search_info.flags.debug && tree.rollouts() % 1_000 == 0 {
+            if search_info.flags.debug && tree.rollouts().is_power_of_two() {
                 print!("Search from tree {id}: ");
                 print!("{}", tree.show_root_distribution().unwrap());
                 println!(" rollouts: {}", tree.rollouts());
                 std::io::stdout().flush().unwrap();
             }
-            if search_info.flags.readout && tree.rollouts() % 1_000 == 0 {
+            if search_info.flags.readout && tree.rollouts().is_power_of_two() {
                 assert!(
                     tree.average_depth() >= 0.0,
                     "It's impossible to have searched any lines to a negative depth."
@@ -268,7 +268,7 @@ impl<G: Game> MCTS<G> {
                 let avg_depth = tree.average_depth().round() as u64;
                 println!(
                     "q: {:.3} eval: {:.3} depth: {}/{} pv: {}",
-                    f64::from(tree.root().wins()) / f64::from(tree.rollouts()),
+                    f64::from(tree.root().wins()) / f64::from(tree.rollouts()) / f64::from(WIN_SCORE),
                     tree.eval(),
                     avg_depth,
                     tree.pv_depth(),
@@ -285,7 +285,7 @@ impl<G: Game> MCTS<G> {
         let promising_node_idx = Self::select(ROOT_IDX, tree, search_info);
         let promising_node = &tree[promising_node_idx];
 
-        if !promising_node.state().is_terminal() {
+        if !promising_node.terminal() {
             tree.expand(promising_node_idx);
         }
 

@@ -27,20 +27,21 @@ pub struct Gomoku<const N: usize> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Move<const N: usize> {
-    loc: usize,
+    loc: u8,
 }
 
 impl<const N: usize> Move<N> {
     const fn new(loc: usize) -> Self {
-        Self { loc }
+        #[allow(clippy::cast_possible_truncation)]
+        Self { loc: loc as u8 }
     }
 
     const fn row(self) -> usize {
-        self.loc / N
+        self.loc as usize / N
     }
 
     const fn col(self) -> usize {
-        self.loc % N
+        self.loc as usize % N
     }
 }
 
@@ -206,6 +207,12 @@ impl<const N: usize, const SIZE: usize> MoveBuffer<Move<N>> for Buffer<N, SIZE> 
 impl<const N: usize> Default for Gomoku<N> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<const N: usize> Default for Move<N> {
+    fn default() -> Self {
+        Self::new(N * N)
     }
 }
 

@@ -126,6 +126,12 @@ impl Default for Connect4 {
     }
 }
 
+impl Default for C4Move {
+    fn default() -> Self {
+        Self(7)
+    }
+}
+
 impl Display for Connect4 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const RED: &str = "\u{001b}[31m";

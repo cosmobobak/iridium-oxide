@@ -41,6 +41,7 @@ use crate::{
 
 #[derive(Clone)]
 pub struct SearchTree<G: Game> {
+    pub root: Option<G>,
     pub nodes: Vec<Node<G>>,
     capacity: usize,
     rollouts: u32,
@@ -51,6 +52,7 @@ impl<G: Game> SearchTree<G> {
 
     pub fn new() -> Self {
         Self {
+            root: None,
             nodes: Vec::with_capacity(Self::NODEPOOL_SIZE),
             capacity: Self::NODEPOOL_SIZE,
             rollouts: 0,
@@ -59,6 +61,7 @@ impl<G: Game> SearchTree<G> {
 
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
+            root: None,
             nodes: Vec::with_capacity(capacity),
             capacity,
             rollouts: 0,
@@ -120,7 +123,8 @@ impl<G: Game> SearchTree<G> {
 
     pub fn setup(&mut self, root: G) {
         self.clear();
-        self.nodes.push(Node::new(root, None));
+        self.nodes.push(Node::new(root.clone(), None, G::Move::default()));
+        self.root = Some(root);
         self.rollouts = 0;
     }
 
@@ -149,7 +153,7 @@ impl<G: Game> SearchTree<G> {
             }
             let mut child_board = board.clone();
             child_board.push(*m);
-            self.nodes.push(Node::new(child_board, Some(idx)));
+            self.nodes.push(Node::new(child_board, Some(idx), *m));
         }
         // SAFETY: we have already accessed this location in the vector
         // and we do not reduce the size of the vector between the accesses.
@@ -215,27 +219,24 @@ impl<G: Game> SearchTree<G> {
         let mut buf = String::new();
         let mut idx = ROOT_IDX;
         while let Some(node) = self.nodes.get(idx) {
-            let leftmost = node.children().start;
-            if node.has_children() {
-                idx = self.best_child_by_visits(idx);
-            } else {
+            if !node.has_children() {
                 break;
             }
-            buf.push_str(&format!("{} ", idx - leftmost));
+            idx = self.best_child_by_visits(idx);
+            buf.push_str(&format!("{} ", self.nodes.get(idx).unwrap().inbound_edge()));
         }
         buf
     }
 
     pub fn pv_depth(&self) -> usize {
-        let mut idx = ROOT_IDX;
         let mut depth = 0;
+        let mut idx = ROOT_IDX;
         while let Some(node) = self.nodes.get(idx) {
-            if node.has_children() {
-                idx = self.best_child_by_visits(idx);
-                depth += 1;
-            } else {
+            if !node.has_children() {
                 break;
             }
+            idx = self.best_child_by_visits(idx);
+            depth += 1;
         }
         depth
     }

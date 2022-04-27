@@ -16,15 +16,20 @@ pub struct Node<G: Game> {
     value: f32,
     visits: u32,
     perspective: i8, // 1 for max, -1 for min
+
+    terminal: bool,
+
+    inbound_edge: G::Move,
 }
 
 impl<G: Game> Node<G> {
-    pub fn new(board: G, parent: Option<usize>) -> Self {
+    pub fn new(board: G, parent: Option<usize>, inbound_edge: G::Move) -> Self {
         // perspective is set to -turn because what matters is
         // whether a player wants to "enter" a node, and so if
         // the turn is 1, then the perspective is -1, because
         // this node has just been "chosen" by player -1.
         let perspective = -board.turn();
+        let terminal = board.is_terminal();
         Self {
             board,
             first_child: 0,
@@ -33,6 +38,8 @@ impl<G: Game> Node<G> {
             value: 0.0,
             visits: 0,
             perspective,
+            terminal,
+            inbound_edge,
         }
     }
 
@@ -49,7 +56,7 @@ impl<G: Game> Node<G> {
     }
 
     pub fn to_move(&self) -> i8 {
-        self.board.turn()
+        -self.perspective
     }
 
     pub fn wins(&self) -> f32 {
@@ -58,6 +65,14 @@ impl<G: Game> Node<G> {
 
     pub fn visits(&self) -> u32 {
         self.visits
+    }
+
+    pub fn terminal(&self) -> bool {
+        self.terminal
+    }
+
+    pub fn inbound_edge(&self) -> G::Move {
+        self.inbound_edge
     }
 
     pub fn win_rate(&self) -> f64 {
@@ -77,6 +92,7 @@ impl<G: Game> Node<G> {
         // the whole negative-positive thing really sucks
         assert!((-1.0..=1.0).contains(&q), "q holds invalid value: {}", q);
         let value = (perspective_q + 1.0) / 2.0 * WIN_SCORE;
+        assert!((0.0..=WIN_SCORE).contains(&value), "computed value holds invalid value: expected in range [0, {}], got {}", WIN_SCORE, value);
         self.value += value;
     }
 

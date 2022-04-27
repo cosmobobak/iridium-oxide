@@ -24,6 +24,12 @@ impl TicTacToeMove {
     }
 }
 
+impl Default for TicTacToeMove {
+    fn default() -> Self {
+        Self(9)
+    }
+}
+
 impl Debug for TicTacToeMove {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "idx: {}", self.0)

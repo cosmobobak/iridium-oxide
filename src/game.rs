@@ -12,7 +12,7 @@ pub trait MoveBuffer<Move>: Debug + Default + Index<usize, Output = Move> + Disp
 }
 
 pub trait Game: Clone + Eq + Debug + Display + Default + Send + Sync {
-    type Move: Copy + Eq + Ord + Debug + Display;
+    type Move: Copy + Eq + Ord + Debug + Display + Default + Send + Sync;
     type Buffer: MoveBuffer<Self::Move>;
 
     fn turn(&self) -> i8;

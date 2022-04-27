@@ -5,7 +5,7 @@ use std::{io::Write, time::Instant};
 
 use crate::{
     gamerunner::{GameRunner, Player},
-    mcts::{Behaviour, Limit, RolloutPolicy, MCTS}, connectfour::{Connect4}, gomoku::Gomoku, tictactoe::TicTacToe,
+    mcts::{Behaviour, Limit, RolloutPolicy, MCTS}, connectfour::Connect4, constants::DEFAULT_EXP_FACTOR,
 };
 
 mod agent;
@@ -42,18 +42,18 @@ fn fastplay<G: Game>(config: Behaviour) {
 }
 
 fn main() {
-    fastplay::<Connect4>(Behaviour {
+    fastplay::<gomoku::Gomoku<9>>(Behaviour {
         debug: false,
         readout: true,
         limit: Limit::Rollouts(10_000_000),
         root_parallelism_count: 1,
-        rollout_policy: RolloutPolicy::RandomCutoff,
-        exp_factor: 20.0,
+        rollout_policy: RolloutPolicy::DecisiveQualityScaled,
+        exp_factor: DEFAULT_EXP_FACTOR / 5.0,
         training: false,
     });
     // get the command line arguments
     let args: Vec<String> = std::env::args().collect();
-    assert!(args.len() >= 2);
+    assert!(args.len() >= 2, "pass the number of games to play as a CLI argument");
     let games = args[1].parse::<u32>().unwrap();
 
     println!("iridium-oxide operating at full capacity!");
