@@ -286,11 +286,11 @@ impl<const N: usize> Game for Gomoku<N> {
     fn generate_moves(&self, moves: &mut Self::Buffer) {
         assert!(moves.capacity() >= N * N);
         let mut i = 0;
-        for row in self.board {
+        for row in &self.board {
             for &cell in row.iter() {
                 if cell == EMPTY {
                     // SAFETY: `moves` is guaranteed to have enough capacity
-                    // (we do at most N * N passed through this inner loop
+                    // (we do at most N * N passes through this inner loop
                     // and we know that `moves` has at least this many slots)
                     unsafe {
                         moves.push_unchecked(Move::new(i));

@@ -1,13 +1,19 @@
+#![allow(clippy::cast_precision_loss)]
+
+use rand::Rng;
 use rayon::prelude::*;
 
-use std::{time::{Duration, Instant}, fmt::Display};
-
-use rayon::iter::IntoParallelRefMutIterator;
+use std::{
+    fmt::Display,
+    io::Write,
+    time::{Duration, Instant},
+};
 
 use crate::{
-    constants::{N_INF, ROOT_IDX, MAX_NODEPOOL_SIZE},
+    constants::{MAX_NODEPOOL_MEM, N_INF, ROOT_IDX},
     game::{Game, MoveBuffer},
     searchtree::SearchTree,
+    treenode::Node,
     uct,
 };
 
@@ -24,7 +30,10 @@ pub enum Limit {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RolloutPolicy {
     Random,
-    Decisive
+    Decisive,
+    RandomQualityScaled,
+    DecisiveQualityScaled,
+    RandomCutoff,
 }
 
 /// A struct containing all configuration parameters for the MCTS algorithm.
@@ -36,6 +45,7 @@ pub struct Behaviour {
     pub root_parallelism_count: usize,
     pub rollout_policy: RolloutPolicy,
     pub exp_factor: f64,
+    pub training: bool,
 }
 
 impl Default for Behaviour {
@@ -44,10 +54,11 @@ impl Default for Behaviour {
         Self {
             debug: true,
             readout: true,
-            limit: Rollouts(10_000),
+            limit: Rollouts(100_000),
             root_parallelism_count: 1,
             rollout_policy: RolloutPolicy::Random,
             exp_factor: 1.0,
+            training: false,
         }
     }
 }
@@ -94,6 +105,8 @@ pub struct MCTS<G: Game> {
 }
 
 impl<G: Game> MCTS<G> {
+    const NODEPOOL_SIZE: usize = MAX_NODEPOOL_MEM / std::mem::size_of::<Node<G>>();
+
     pub fn new(flags: Behaviour) -> Self {
         Self {
             search_info: SearchInfo {
@@ -101,7 +114,11 @@ impl<G: Game> MCTS<G> {
                 side: 1,
                 start_time: None,
             },
-            trees: vec![SearchTree::with_capacity(MAX_NODEPOOL_SIZE / flags.root_parallelism_count); flags.root_parallelism_count],
+            trees: (0..flags.root_parallelism_count)
+                .map(|_| {
+                    SearchTree::with_capacity(Self::NODEPOOL_SIZE / flags.root_parallelism_count)
+                })
+                .collect(),
         }
     }
 
@@ -123,14 +140,26 @@ impl<G: Game> MCTS<G> {
     pub fn search(&mut self, board: &G) -> SearchResults<G> {
         self.search_info.start_time = Some(Instant::now());
 
-        self.trees.iter_mut().for_each(|tree| tree.setup(board.clone()));
+        self.trees
+            .iter_mut()
+            .for_each(|tree| tree.setup(board.clone()));
 
-        assert_eq!(self.trees.len(), self.search_info.flags.root_parallelism_count);
-        self.trees.par_iter_mut().enumerate().for_each(|(id, tree)| {
-            Self::do_treesearch(id, self.search_info, tree);
-        });
+        assert_eq!(
+            self.trees.len(),
+            self.search_info.flags.root_parallelism_count
+        );
+        self.trees
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(id, tree)| {
+                Self::do_treesearch(id, self.search_info, tree);
+            });
 
-        let rollout_distributions = self.trees.iter().map(SearchTree::root_rollout_distribution).collect::<Vec<_>>();
+        let rollout_distributions = self
+            .trees
+            .iter()
+            .map(SearchTree::root_rollout_distribution)
+            .collect::<Vec<_>>();
 
         if self.search_info.flags.debug {
             for dist in &rollout_distributions {
@@ -145,16 +174,15 @@ impl<G: Game> MCTS<G> {
             }
         }
 
-        let best = fused_distribution
-            .iter()
-            .enumerate()
-            .max_by_key(|(_, &count)| count)
-            .unwrap().0;
-
         assert!(self.trees.len() < 128);
         #[allow(clippy::cast_precision_loss)]
         let len_as_f64 = self.trees.len() as f64;
-        let avg_win_rate = self.trees.iter().map(|tree| tree.root().win_rate()).sum::<f64>() / len_as_f64;
+        let avg_win_rate = self
+            .trees
+            .iter()
+            .map(|tree| tree.root().win_rate())
+            .sum::<f64>()
+            / len_as_f64;
 
         let total_rollouts = self.trees.iter().map(SearchTree::rollouts).sum::<u32>();
         if let Limit::Rollouts(x) = self.search_info.flags.limit {
@@ -163,9 +191,21 @@ impl<G: Game> MCTS<G> {
             assert_eq!(total_rollouts, expected_rollouts);
         }
 
+        let move_chosen = if self.search_info.flags.training {
+            sample_move_index_from_rollouts(&fused_distribution)
+        } else {
+            let best = fused_distribution
+                .iter()
+                .enumerate()
+                .max_by_key(|(_, &count)| count)
+                .unwrap()
+                .0;
+            best
+        };
+
         let first_tree = self.trees.first().unwrap();
         let root_children = first_tree.root().children();
-        let new_node_idx = best + root_children.start;
+        let new_node_idx = move_chosen + root_children.start;
         let new_node = first_tree[new_node_idx].state().clone();
 
         SearchResults {
@@ -178,10 +218,10 @@ impl<G: Game> MCTS<G> {
     }
 
     pub fn best_next_board(&mut self, board: &G) -> G {
-        let SearchResults { 
-            rollout_distribution, 
-            new_node, 
-            new_node_idx, 
+        let SearchResults {
+            rollout_distribution,
+            new_node,
+            new_node_idx,
             rollouts,
             win_rate,
         } = self.search(board);
@@ -213,13 +253,28 @@ impl<G: Game> MCTS<G> {
 
     fn do_treesearch(id: usize, search_info: SearchInfo, tree: &mut SearchTree<G>) {
         while !Self::limit_reached(&search_info, tree.rollouts()) {
-            if search_info.flags.debug && tree.rollouts() % 10_000 == 0 {
+            if search_info.flags.debug && tree.rollouts() % 1_000 == 0 {
                 print!("Search from tree {id}: ");
                 print!("{}", tree.show_root_distribution().unwrap());
                 println!(" rollouts: {}", tree.rollouts());
+                std::io::stdout().flush().unwrap();
             }
-            if search_info.flags.debug {
-                println!("looping in SESB, rollouts: {}", tree.rollouts());
+            if search_info.flags.readout && tree.rollouts() % 1_000 == 0 {
+                assert!(
+                    tree.average_depth() >= 0.0,
+                    "It's impossible to have searched any lines to a negative depth."
+                );
+                #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+                let avg_depth = tree.average_depth().round() as u64;
+                println!(
+                    "q: {:.3} eval: {:.3} depth: {}/{} pv: {}",
+                    f64::from(tree.root().wins()) / f64::from(tree.rollouts()),
+                    tree.eval(),
+                    avg_depth,
+                    tree.pv_depth(),
+                    tree.pv_string()
+                );
+                std::io::stdout().flush().unwrap();
             }
             Self::select_expand_simulate_backpropagate(&search_info, tree);
             tree.inc_rollouts();
@@ -233,7 +288,7 @@ impl<G: Game> MCTS<G> {
         if !promising_node.state().is_terminal() {
             tree.expand(promising_node_idx);
         }
- 
+
         let promising_node = unsafe { tree.get_unchecked(promising_node_idx) }; // makes borrowchk happy
         let node_to_explore = if promising_node.has_children() {
             promising_node.random_child()
@@ -241,15 +296,15 @@ impl<G: Game> MCTS<G> {
             promising_node_idx
         };
 
-        let winner = Self::simulate(search_info, node_to_explore, tree);
+        let q = Self::simulate(search_info, node_to_explore, tree);
 
-        Self::backprop(node_to_explore, winner, tree);
+        Self::backprop(node_to_explore, q, tree);
     }
 
-    fn backprop(node_idx: usize, winner: i8, tree: &mut SearchTree<G>) {
+    fn backprop(node_idx: usize, q: f32, tree: &mut SearchTree<G>) {
         let mut node = tree.get_mut(node_idx).expect("called backprop on root");
         loop {
-            node.update(winner);
+            node.update(q);
             if let Some(parent_idx) = node.parent() {
                 node = &mut tree[parent_idx]; // this could be get_unchecked, but it feels dangerous
             } else {
@@ -258,7 +313,10 @@ impl<G: Game> MCTS<G> {
         }
     }
 
-    fn simulate(search_info: &SearchInfo, node_idx: usize, tree: &mut SearchTree<G>) -> i8 {
+    fn simulate(search_info: &SearchInfo, node_idx: usize, tree: &mut SearchTree<G>) -> f32 {
+        use RolloutPolicy::{
+            Decisive, DecisiveQualityScaled, Random, RandomCutoff, RandomQualityScaled,
+        };
         let node = &tree[node_idx];
         let playout_board = node.state().clone();
 
@@ -268,18 +326,17 @@ impl<G: Game> MCTS<G> {
             let parent_idx = node
                 .parent()
                 .expect("PANICKING: Immediate loss found in root node.");
-            tree[parent_idx].set_win_score(N_INF);
-            return status;
+            tree[parent_idx].set_win_score(N_INF as f32);
+            return f32::from(status);
         }
 
         // playout
         match search_info.flags.rollout_policy {
-            RolloutPolicy::Random => {
-                Self::random_rollout(playout_board)
-            }
-            RolloutPolicy::Decisive => {
-                Self::decisive_rollout(playout_board)
-            }
+            Random => Self::random_rollout(playout_board),
+            Decisive => Self::decisive_rollout(playout_board),
+            RandomQualityScaled => Self::random_rollout_qs(playout_board),
+            DecisiveQualityScaled => Self::decisive_rollout_qs(playout_board),
+            RandomCutoff => Self::random_rollout_cutoff(playout_board),
         }
     }
 
@@ -291,7 +348,7 @@ impl<G: Game> MCTS<G> {
             idx = uct::best(
                 &tree.nodes[children.clone()],
                 node.visits(),
-                search_info.flags.exp_factor
+                search_info.flags.exp_factor,
             ) + children.start;
             node = &tree[idx];
         }
@@ -299,16 +356,33 @@ impl<G: Game> MCTS<G> {
     }
 
     #[inline]
-    fn random_rollout(playout_board: G) -> i8 {
+    fn random_rollout(playout_board: G) -> f32 {
         let mut board = playout_board;
         while !board.is_terminal() {
             board.push_random();
         }
-        board.evaluate()
+        f32::from(board.evaluate())
     }
 
     #[inline]
-    fn decisive_rollout(playout_board: G) -> i8 {
+    fn scale(q: f32, moves: f32) -> f32 {
+        q * (-0.04 * moves).exp()
+    }
+
+    #[inline]
+    fn random_rollout_qs(playout_board: G) -> f32 {
+        let mut board = playout_board;
+        let mut moves = 1;
+        while !board.is_terminal() {
+            board.push_random();
+            moves += 1;
+        }
+        let q = f32::from(board.evaluate());
+        Self::scale(q, moves as f32)
+    }
+
+    #[inline]
+    fn decisive_rollout(playout_board: G) -> f32 {
         let mut board = playout_board;
         while !board.is_terminal() {
             let mut buffer = G::Buffer::default();
@@ -318,11 +392,73 @@ impl<G: Game> MCTS<G> {
                 copy.push(m);
                 let evaluation = copy.evaluate();
                 if evaluation != 0 {
-                    return evaluation;
+                    return f32::from(evaluation);
                 }
             }
             board.push_random(); // can be optimised
         }
-        board.evaluate()
+        f32::from(board.evaluate())
     }
+
+    #[inline]
+    fn decisive_rollout_qs(playout_board: G) -> f32 {
+        let mut board = playout_board;
+        let mut moves = 1;
+        while !board.is_terminal() {
+            let mut buffer = G::Buffer::default();
+            board.generate_moves(&mut buffer);
+            for &m in buffer.iter() {
+                let mut copy = board.clone();
+                copy.push(m);
+                let evaluation = copy.evaluate();
+                if evaluation != 0 {
+                    return f32::from(evaluation) / (moves as f32 + 10.0) * 10.0;
+                }
+            }
+            board.push_random(); // can be optimised
+            moves += 1;
+        }
+        let q = f32::from(board.evaluate());
+        Self::scale(q, moves as f32)
+    }
+
+    #[inline]
+    fn random_rollout_cutoff(playout_board: G) -> f32 {
+        const MAX_ROLLOUT_LENGTH: usize = 20;
+        let mut board = playout_board;
+        let mut moves = 1;
+        while !board.is_terminal() {
+            board.push_random();
+            if moves > MAX_ROLLOUT_LENGTH {
+                return 0.0;
+            }
+            moves += 1;
+        }
+        f32::from(board.evaluate())
+    }
+}
+
+fn sample_move_index_from_rollouts(fused_distribution: &[u32]) -> usize {
+    let total_rollouts = fused_distribution.iter().sum::<u32>();
+    let prob_vector = fused_distribution
+        .iter()
+        .map(|&count| {
+            let raw_policy = f64::from(count) / f64::from(total_rollouts);
+            // adjust to flatten the distribution
+            #[allow(clippy::cast_precision_loss)]
+            let uniform_val = 1.0 / fused_distribution.len() as f64;
+            raw_policy.mul_add(0.7, uniform_val * 0.3)
+        })
+        .collect::<Vec<_>>();
+    let rfloat = rand::thread_rng().gen_range(0.0..1.0);
+    let mut cumulative_probability = 0.0;
+    let mut choice = 0;
+    for (i, &prob) in prob_vector.iter().enumerate() {
+        cumulative_probability += prob;
+        if rfloat <= cumulative_probability {
+            choice = i;
+            break;
+        }
+    }
+    choice
 }

@@ -1,8 +1,7 @@
-pub const WIN_SCORE: i32 = 10;
-pub const DRAW_SCORE: i32 = WIN_SCORE / 2;
+pub const WIN_SCORE: f32 = 10.0;
 
 pub const TREE_PRINT_DEPTH: usize = 2;
-pub const MAX_NODEPOOL_SIZE: usize = 100_000_000; // convert to use memory limit at some point
+pub const MAX_NODEPOOL_MEM: usize = 4 * 1024 * 1024 * 1024; // 4GB
 pub const ROOT_IDX: usize = 0;
 
 pub const INF: i32 = i32::max_value();

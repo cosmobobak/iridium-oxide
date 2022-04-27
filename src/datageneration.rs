@@ -27,12 +27,13 @@ impl Display for Entry {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{},{},", self.outcome, self.move_count)?;
         for &i in &self.state.data {
-            write!(f, "{},", i)?;
+            write!(f, "{i},")?;
         }
-        for &i in &self.policy.data {
-            write!(f, "{},", i)?;
+        for &i in &self.policy.data[..self.policy.data.len() - 1] {
+            write!(f, "{i:.3},")?;
         }
-        Ok(())
+        let last = *self.policy.data.last().expect("expected nonempty policy vector");
+        write!(f, "{:.3}", last)
     }
 }
 
@@ -86,6 +87,12 @@ impl GameData {
             }
             Err(e) => panic!("could not create data save file: {e}"),
         }
+    }
+
+    pub fn summary(&self) {
+        #[allow(clippy::cast_precision_loss)]
+        let len_float = self.entries.len() as f64;
+        println!("Mean game outcome: {:.3}", f64::from(self.entries.iter().map(|e| i32::from(e.outcome)).sum::<i32>()) / len_float);
     }
 }
 

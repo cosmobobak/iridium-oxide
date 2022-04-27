@@ -1,20 +1,19 @@
+#![allow(clippy::cast_precision_loss)]
+
 use std::{fmt::Display, ops::Range};
 
 use rand::Rng;
 
-use crate::{
-    constants::{DRAW_SCORE, WIN_SCORE},
-    game::Game,
-};
+use crate::{constants::WIN_SCORE, game::Game};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Node<G: Game> {
     board: G,
     first_child: usize,
     n_children: usize,
     parent: Option<usize>,
 
-    wins: i32,
+    value: f32,
     visits: u32,
     perspective: i8, // 1 for max, -1 for min
 }
@@ -31,7 +30,7 @@ impl<G: Game> Node<G> {
             first_child: 0,
             n_children: 0,
             parent,
-            wins: 0,
+            value: 0.0,
             visits: 0,
             perspective,
         }
@@ -49,17 +48,12 @@ impl<G: Game> Node<G> {
         self.parent
     }
 
-    // pub fn orphanise(&mut self) {
-    //     // this method is for a future implementation of tree pruning and compaction.
-    //     self.parent = None;
-    // }
-
     pub fn to_move(&self) -> i8 {
         self.board.turn()
     }
 
-    pub fn wins(&self) -> i32 {
-        self.wins
+    pub fn wins(&self) -> f32 {
+        self.value
     }
 
     pub fn visits(&self) -> u32 {
@@ -70,34 +64,24 @@ impl<G: Game> Node<G> {
         if self.visits == 0 {
             0.0
         } else {
-            f64::from(self.wins) / f64::from(self.visits) / f64::from(WIN_SCORE)
+            f64::from(self.value) / f64::from(self.visits) / f64::from(WIN_SCORE)
         }
     }
 
     #[inline]
-    pub fn update(&mut self, result: i8) {
+    pub fn update(&mut self, q: f32) {
         self.visits += 1;
-        // the whole negative-positive thing really sucks
-        assert!(
-            result == 1 || result == -1 || result == 0,
-            "result holds invalid value: {}",
-            result
-        );
         assert!(self.perspective == 1 || self.perspective == -1);
-        if result == self.perspective {
-            // rollout was a win for us
-            self.wins += WIN_SCORE;
-        } else if result == 0 {
-            // rollout was a draw
-            self.wins += DRAW_SCORE;
-        } else {
-            // rollout was a loss for us
-            // no-op, because LOSS_SCORE = 0.
-        }
+        // scale the range of q from [-1, 1] to [0, WIN_SCORE]
+        let perspective_q = q * f32::from(self.perspective);
+        // the whole negative-positive thing really sucks
+        assert!((-1.0..=1.0).contains(&q), "q holds invalid value: {}", q);
+        let value = (perspective_q + 1.0) / 2.0 * WIN_SCORE;
+        self.value += value;
     }
 
-    pub fn set_win_score(&mut self, score: i32) {
-        self.wins = score;
+    pub fn set_win_score(&mut self, score: f32) {
+        self.value = score;
     }
 
     pub fn add_children(&mut self, start: usize, count: usize) {
@@ -116,6 +100,6 @@ impl<G: Game> Node<G> {
 
 impl<G: Game> Display for Node<G> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Node {{ board: {:?}, children: {:?}, parent: {:?}, wins: {}, visits: {}, to_move: {}, win_rate: {} }}", self.board, self.children(), self.parent, self.wins, self.visits, self.board.turn(), self.win_rate())
+        write!(f, "Node {{ board: {:?}, children: {:?}, parent: {:?}, wins: {}, visits: {}, to_move: {}, win_rate: {} }}", self.board, self.children(), self.parent, self.value, self.visits, self.board.turn(), self.win_rate())
     }
 }

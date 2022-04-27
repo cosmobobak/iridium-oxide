@@ -1,10 +1,12 @@
+#![allow(clippy::cast_precision_loss)]
+
 use std::{
     fmt::{Display, self},
     ops::{Index, IndexMut},
 };
 
 use crate::{
-    constants::{MAX_NODEPOOL_SIZE, ROOT_IDX, TREE_PRINT_DEPTH},
+    constants::{MAX_NODEPOOL_MEM, ROOT_IDX, TREE_PRINT_DEPTH, WIN_SCORE},
     game::{Game, MoveBuffer},
     treenode::Node,
 };
@@ -45,10 +47,12 @@ pub struct SearchTree<G: Game> {
 }
 
 impl<G: Game> SearchTree<G> {
+    const NODEPOOL_SIZE: usize = MAX_NODEPOOL_MEM / std::mem::size_of::<Node<G>>();
+
     pub fn new() -> Self {
         Self {
-            nodes: Vec::with_capacity(MAX_NODEPOOL_SIZE),
-            capacity: MAX_NODEPOOL_SIZE,
+            nodes: Vec::with_capacity(Self::NODEPOOL_SIZE),
+            capacity: Self::NODEPOOL_SIZE,
             rollouts: 0,
         }
     }
@@ -207,23 +211,57 @@ impl<G: Game> SearchTree<G> {
         self.nodes.get_unchecked_mut(idx)
     }
 
-    // fn mark_least_visited(&mut self, visit_threshold: u32) {
-    //     let mut queue = VecDeque::new();
-    //     queue.push_back(ROOT_IDX);
-    //     while let Some(idx) = queue.pop_front() {
-    //         let node = &mut self.nodes[idx];
-    //         if node.visits() < visit_threshold {
-    //             node.orphanise();
-    //             for child in node.children() {
-    //                 queue.push_back(child);
-    //             }
-    //         }
-    //     }
-    // }
+    pub fn pv_string(&self) -> String {
+        let mut buf = String::new();
+        let mut idx = ROOT_IDX;
+        while let Some(node) = self.nodes.get(idx) {
+            let leftmost = node.children().start;
+            if node.has_children() {
+                idx = self.best_child_by_visits(idx);
+            } else {
+                break;
+            }
+            buf.push_str(&format!("{} ", idx - leftmost));
+        }
+        buf
+    }
 
-    // pub fn prune_least_visited(&mut self, visit_threshold: u32) {
+    pub fn pv_depth(&self) -> usize {
+        let mut idx = ROOT_IDX;
+        let mut depth = 0;
+        while let Some(node) = self.nodes.get(idx) {
+            if node.has_children() {
+                idx = self.best_child_by_visits(idx);
+                depth += 1;
+            } else {
+                break;
+            }
+        }
+        depth
+    }
 
-    // }
+    fn average_depth_of(&self, node_idx: usize) -> f64 {
+        let node = self.nodes.get(node_idx).expect("Node does not exist");
+        if node.has_children() {
+            node.children().map(|i| self.average_depth_of(i) + 1.0).sum::<f64>() / node.children().len() as f64
+        } else {
+            0.0
+        }
+    }
+
+    pub fn average_depth(&self) -> f64 {
+        self.average_depth_of(ROOT_IDX)
+    }
+
+    pub fn eval(&self) -> f64 {
+        let root = self.get(ROOT_IDX).expect("Root node does not exist");
+        let q = root.wins();
+        let n = root.visits();
+        assert_eq!(n, self.rollouts);
+        // scale [0, WIN_SCORE] to [-1, 1]
+        let zero_to_one = f64::from(q) / f64::from(n) / f64::from(WIN_SCORE);
+        zero_to_one.mul_add(2.0, -1.0)
+    }
 }
 
 impl<G: Game> Display for SearchTree<G> {

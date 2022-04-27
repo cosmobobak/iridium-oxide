@@ -1,11 +1,11 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(dead_code)]
 
-use std::io::Write;
+use std::{io::Write, time::Instant};
 
 use crate::{
     gamerunner::{GameRunner, Player},
-    mcts::{Behaviour, Limit, RolloutPolicy, MCTS}, connectfour::{Connect4},
+    mcts::{Behaviour, Limit, RolloutPolicy, MCTS}, connectfour::{Connect4}, gomoku::Gomoku, tictactoe::TicTacToe,
 };
 
 mod agent;
@@ -26,34 +26,47 @@ mod datageneration;
 
 #[allow(unused_imports)]
 use Player::{Computer, Human};
+use game::Game;
 
 const GAMES: usize = 1;
 
-fn fastplay(config: Behaviour) {
+fn fastplay<G: Game>(config: Behaviour) {
     let mut buf = String::new();
     std::io::stdin().read_line(&mut buf).unwrap();
     let buf = buf.trim();
     match buf.chars().next() {
-        Some('2') => GameRunner::<Connect4>::new(Human, Computer(MCTS::new(config))).run(),
-        Some('1') => GameRunner::<Connect4>::new(Computer(MCTS::new(config)), Human).run(),
+        Some('2') => GameRunner::<G>::new(Human, Computer(MCTS::new(config))).run(),
+        Some('1') => GameRunner::<G>::new(Computer(MCTS::new(config)), Human).run(),
         _ => panic!("invalid input: \"{buf}\""),
     }
 }
 
 fn main() {
+    fastplay::<Connect4>(Behaviour {
+        debug: false,
+        readout: true,
+        limit: Limit::Rollouts(10_000_000),
+        root_parallelism_count: 1,
+        rollout_policy: RolloutPolicy::RandomCutoff,
+        exp_factor: 20.0,
+        training: false,
+    });
     // get the command line arguments
     let args: Vec<String> = std::env::args().collect();
     assert!(args.len() >= 2);
-    let games = args[1].parse::<usize>().unwrap();
+    let games = args[1].parse::<u32>().unwrap();
 
     println!("iridium-oxide operating at full capacity!");
     println!("{games} games will be played");
 
+    let start = Instant::now();
     generate_data(games);
+    let elapsed = start.elapsed();
+    println!("Generating data took {secs:.2} seconds", secs = elapsed.as_secs_f64());
 }
 
-fn generate_data(games: usize) {
-    let limit = Limit::Rollouts(10_000);
+fn generate_data(games: u32) {
+    let limit = Limit::Rollouts(500_000);
     let config = Behaviour {
         debug: false,
         readout: true,
@@ -61,14 +74,16 @@ fn generate_data(games: usize) {
         root_parallelism_count: 1,
         rollout_policy: RolloutPolicy::Random,
         exp_factor: 5.0,
+        training: true,
     };
 
     let episode_data = (0..games).map(|it| { 
         // print progress bar   
-        print!("{}%     \r", it * 100 / games);
+        print!("{:.2}%     \r", f64::from(it) * 100.0 / f64::from(games));
         std::io::stdout().flush().unwrap();
         GameRunner::<Connect4>::play_training_game(config)
     }).reduce(|a, b| a + b).expect("failed to generate training data");
-    println!("100%");
-    episode_data.save::<Connect4>("connect4data.csv").expect("failed to write file");
+    println!("100%     ");
+    episode_data.save::<Connect4>("datasets/connect4data.csv").expect("failed to write file");
+    episode_data.summary();
 }

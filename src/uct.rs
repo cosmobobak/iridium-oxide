@@ -5,11 +5,11 @@ use crate::{
 };
 
 #[inline]
-fn ucb1_value(parent_visits: u32, win_count: i32, visits: u32, exp_factor: f64) -> f64 {
+fn ucb1_value(parent_visits: u32, q_value: f32, visits: u32, exp_factor: f64) -> f64 {
     if visits == 0 {
         return NODE_UNVISITED_VALUE;
     }
-    let exploitation = f64::from(win_count) / f64::from(visits);
+    let exploitation = f64::from(q_value) / f64::from(visits);
     let exploration =
         ((f64::from(parent_visits)).ln() / f64::from(visits)).sqrt() * exp_factor * f64::from(WIN_SCORE);
     exploitation + exploration
