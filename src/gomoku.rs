@@ -25,15 +25,17 @@ pub struct Gomoku<const N: usize> {
     last_move: Move<N>,
 }
 
+type MoveInnerRepr = u16;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Move<const N: usize> {
-    loc: u8,
+    loc: MoveInnerRepr,
 }
 
 impl<const N: usize> Move<N> {
     const fn new(loc: usize) -> Self {
         #[allow(clippy::cast_possible_truncation)]
-        Self { loc: loc as u8 }
+        Self { loc: loc as MoveInnerRepr }
     }
 
     const fn row(self) -> usize {
@@ -137,37 +139,30 @@ impl<const N: usize> Gomoku<N> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Buffer<const N: usize, const SIZE: usize> {
-    moves: [Move<N>; SIZE],
-    len: usize,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Buffer<const N: usize> {
+    moves: Vec<Move<N>>
 }
 
-impl<const N: usize, const SIZE: usize> Buffer<N, SIZE> {
-    const fn new() -> Self {
+impl<const N: usize> Buffer<N> {
+    fn new() -> Self {
         Self {
-            moves: [Move::new(0); SIZE],
-            len: 0,
+            moves: Vec::with_capacity(N * N)
         }
     }
-
-    unsafe fn push_unchecked(&mut self, m: Move<N>) {
-        *self.moves.get_unchecked_mut(self.len) = m;
-        self.len += 1;
-    }
 }
 
-impl<const N: usize, const SIZE: usize> Display for Buffer<N, SIZE> {
+impl<const N: usize> Display for Buffer<N> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "[")?;
-        for m in &self.moves[..self.len - 1] {
+        for m in &self.moves[..self.moves.len() - 1] {
             write!(f, "{}, ", m)?;
         }
-        write!(f, "{}]", self.moves[self.len - 1])
+        write!(f, "{}]", self.moves[self.moves.len() - 1])
     }
 }
 
-impl<const N: usize, const SIZE: usize> Index<usize> for Buffer<N, SIZE> {
+impl<const N: usize> Index<usize> for Buffer<N> {
     type Output = Move<N>;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -175,32 +170,31 @@ impl<const N: usize, const SIZE: usize> Index<usize> for Buffer<N, SIZE> {
     }
 }
 
-impl<const N: usize, const SIZE: usize> Default for Buffer<N, SIZE> {
+impl<const N: usize> Default for Buffer<N> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<const N: usize, const SIZE: usize> MoveBuffer<Move<N>> for Buffer<N, SIZE> {
+impl<const N: usize> MoveBuffer<Move<N>> for Buffer<N> {
     fn iter(&self) -> std::slice::Iter<Move<N>> {
         self.moves.iter()
     }
 
     fn len(&self) -> usize {
-        self.len
+        self.moves.len()
     }
 
     fn is_empty(&self) -> bool {
-        self.len == 0
+        self.moves.is_empty()
     }
 
     fn push(&mut self, m: Move<N>) {
-        self.moves[self.len] = m;
-        self.len += 1;
+        self.moves.push(m);
     }
 
     fn capacity(&self) -> usize {
-        SIZE
+        self.moves.capacity()
     }
 }
 
@@ -249,7 +243,7 @@ impl<const N: usize> Display for Gomoku<N> {
 impl<const N: usize> Game for Gomoku<N> {
     type Move = Move<N>;
 
-    type Buffer = Buffer<N, { 15 * 15 }>;
+    type Buffer = Buffer<N>;
 
     fn turn(&self) -> i8 {
         if self.moves % 2 == 0 {
@@ -296,12 +290,7 @@ impl<const N: usize> Game for Gomoku<N> {
         for row in &self.board {
             for &cell in row.iter() {
                 if cell == EMPTY {
-                    // SAFETY: `moves` is guaranteed to have enough capacity
-                    // (we do at most N * N passes through this inner loop
-                    // and we know that `moves` has at least this many slots)
-                    unsafe {
-                        moves.push_unchecked(Move::new(i));
-                    }
+                    moves.push(Move::new(i));
                 }
                 i += 1;
             }
