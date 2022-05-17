@@ -99,7 +99,7 @@ impl<G: Game> SearchTree<G> {
         counts
     }
 
-    pub fn show_root_distribution(&self) -> Result<String, fmt::Error> {
+    pub fn show_root_distribution(&self, root: &G) -> Result<String, fmt::Error> {
         use std::fmt::Write;
         let mut buf = String::new();
         let counts = self.root_distribution();
@@ -107,7 +107,7 @@ impl<G: Game> SearchTree<G> {
             return Ok("No moves yet searched.".to_string())
         }
         let mut buffer = G::Buffer::default();
-        self.root().state().generate_moves(&mut buffer);
+        root.generate_moves(&mut buffer);
         assert_eq!(buffer.len(), counts.len());
         write!(buf, "[")?;
         for (&m, &count) in buffer.iter().zip(counts.iter()) {
@@ -123,7 +123,7 @@ impl<G: Game> SearchTree<G> {
 
     pub fn setup(&mut self, root: G) {
         self.clear();
-        self.nodes.push(Node::new(root.clone(), None, G::Move::default()));
+        self.nodes.push(Node::new(root.turn(), None, G::Move::default()));
         self.root = Some(root);
         self.rollouts = 0;
     }
@@ -138,26 +138,24 @@ impl<G: Game> SearchTree<G> {
             .expect("Node has no children")
     }
 
-    pub fn expand(&mut self, idx: usize) {
+    pub fn expand(&mut self, idx: usize, movegen_board: &G) {
         let start = self.nodes.len();
         let node = self.nodes.get_mut(idx).expect("Node does not exist");
         assert!(!node.has_children(), "Node already has children");
 
         let mut move_buffer = G::Buffer::default();
-        let board = node.state().clone();
-        board.generate_moves(&mut move_buffer);
+        movegen_board.generate_moves(&mut move_buffer);
         for m in move_buffer.iter() {
             if self.nodes.len() == self.capacity {
                 println!("{}", self);
                 panic!("SearchTree full, aborting...");
             }
-            let mut child_board = board.clone();
-            child_board.push(*m);
-            self.nodes.push(Node::new(child_board, Some(idx), *m));
+            self.nodes.push(Node::new(-movegen_board.turn(), Some(idx), *m));
         }
         // SAFETY: we have already accessed this location in the vector
         // and we do not reduce the size of the vector between the accesses.
-        // The only reason that we are re-accessing at all is to satisfy borrowchk.
+        // The only reason that we are re-accessing at all is to satisfy borrowchk,
+        // as we know that the Vec will not realloc, so holding references is safe.
         let node = unsafe { self.nodes.get_unchecked_mut(idx) };
         node.add_children(start, move_buffer.len());
     }
@@ -261,7 +259,7 @@ impl<G: Game> SearchTree<G> {
         assert_eq!(n, self.rollouts);
         // scale [0, WIN_SCORE] to [-1, 1]
         let zero_to_one = f64::from(q) / f64::from(n) / f64::from(WIN_SCORE);
-        zero_to_one.mul_add(2.0, -1.0)
+        zero_to_one.mul_add(2.0, -1.0) * f64::from(-self.nodes.first().unwrap().to_move())
     }
 }
 

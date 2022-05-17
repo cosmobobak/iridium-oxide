@@ -8,47 +8,37 @@ use crate::{constants::WIN_SCORE, game::Game};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node<G: Game> {
-    board: G,
-    first_child: usize,
-    n_children: usize,
-    parent: Option<usize>,
+    first_child: usize, // 8 bytes.
+    n_children: u16, // 2 bytes.
+    parent: Option<usize>, // 9 bytes.
 
-    value: f32,
-    visits: u32,
-    perspective: i8, // 1 for max, -1 for min
+    value: f32, // 4 bytes.
+    visits: u32, // 4 bytes.
+    perspective: i8, // 1 byte.
 
-    terminal: bool,
-
-    inbound_edge: G::Move,
+    inbound_edge: G::Move, // ??? bytes.
 }
 
 impl<G: Game> Node<G> {
-    pub fn new(board: G, parent: Option<usize>, inbound_edge: G::Move) -> Self {
+    pub fn new(turn: i8, parent: Option<usize>, inbound_edge: G::Move) -> Self {
         // perspective is set to -turn because what matters is
         // whether a player wants to "enter" a node, and so if
         // the turn is 1, then the perspective is -1, because
         // this node has just been "chosen" by player -1.
-        let perspective = -board.turn();
-        let terminal = board.is_terminal();
+        let perspective = -turn;
         Self {
-            board,
             first_child: 0,
             n_children: 0,
             parent,
             value: 0.0,
             visits: 0,
             perspective,
-            terminal,
             inbound_edge,
         }
     }
 
-    pub fn state(&self) -> &G {
-        &self.board
-    }
-
     pub fn children(&self) -> Range<usize> {
-        self.first_child..self.first_child + self.n_children
+        self.first_child..self.first_child + self.n_children as usize
     }
 
     pub fn parent(&self) -> Option<usize> {
@@ -65,10 +55,6 @@ impl<G: Game> Node<G> {
 
     pub fn visits(&self) -> u32 {
         self.visits
-    }
-
-    pub fn terminal(&self) -> bool {
-        self.terminal
     }
 
     pub fn inbound_edge(&self) -> G::Move {
@@ -102,7 +88,7 @@ impl<G: Game> Node<G> {
 
     pub fn add_children(&mut self, start: usize, count: usize) {
         self.first_child = start;
-        self.n_children = count;
+        self.n_children = count.try_into().unwrap_or_else(|_| panic!("cannot handle more than {} children at once.", u16::MAX));
     }
 
     pub fn has_children(&self) -> bool {
@@ -116,6 +102,6 @@ impl<G: Game> Node<G> {
 
 impl<G: Game> Display for Node<G> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Node {{ board: {:?}, children: {:?}, parent: {:?}, wins: {}, visits: {}, to_move: {}, win_rate: {} }}", self.board, self.children(), self.parent, self.value, self.visits, self.board.turn(), self.win_rate())
+        write!(f, "Node {{ children: {:?}, parent: {:?}, wins: {}, visits: {}, to_move: {}, win_rate: {} }}", self.children(), self.parent, self.value, self.visits, self.to_move(), self.win_rate())
     }
 }

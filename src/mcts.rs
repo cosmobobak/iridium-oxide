@@ -27,17 +27,19 @@ pub enum Limit {
 /// The policy to use when selecting moves during rollouts.
 /// `Random` will select a random move from the available moves.
 /// `Decisive` will try to choose an immediate win (if one exists), otherwise it will select a random move.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RolloutPolicy {
     Random,
     Decisive,
     RandomQualityScaled,
     DecisiveQualityScaled,
-    RandomCutoff,
+    RandomCutoff { moves: usize },
+    DecisiveCutoff { moves: usize },
+    MetaAggregated { policy: Box<Self>, rollouts: usize },
 }
 
 /// A struct containing all configuration parameters for the MCTS algorithm.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Behaviour {
     pub debug: bool,
     pub readout: bool,
@@ -87,7 +89,7 @@ pub struct SearchResults<G: Game> {
 }
 
 /// Information for the MCTS search, including both static config and particular search state.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct SearchInfo {
     pub flags: Behaviour,
     pub side: i8,
@@ -107,10 +109,10 @@ pub struct MCTS<G: Game> {
 impl<G: Game> MCTS<G> {
     const NODEPOOL_SIZE: usize = MAX_NODEPOOL_MEM / std::mem::size_of::<Node<G>>();
 
-    pub fn new(flags: Behaviour) -> Self {
+    pub fn new(flags: &Behaviour) -> Self {
         Self {
             search_info: SearchInfo {
-                flags,
+                flags: flags.clone(),
                 side: 1,
                 start_time: None,
             },
@@ -152,7 +154,7 @@ impl<G: Game> MCTS<G> {
             .par_iter_mut()
             .enumerate()
             .for_each(|(id, tree)| {
-                Self::do_treesearch(id, self.search_info, tree);
+                Self::do_treesearch(board, id, &self.search_info, tree);
             });
 
         let rollout_distributions = self
@@ -206,7 +208,9 @@ impl<G: Game> MCTS<G> {
         let first_tree = self.trees.first().unwrap();
         let root_children = first_tree.root().children();
         let new_node_idx = move_chosen + root_children.start;
-        let new_node = first_tree[new_node_idx].state().clone();
+        let chosen_move = first_tree[new_node_idx].inbound_edge();
+        let mut new_node = board.clone();
+        new_node.push(chosen_move);
 
         SearchResults {
             rollout_distribution: fused_distribution,
@@ -251,11 +255,11 @@ impl<G: Game> MCTS<G> {
         new_node
     }
 
-    fn do_treesearch(id: usize, search_info: SearchInfo, tree: &mut SearchTree<G>) {
-        while !Self::limit_reached(&search_info, tree.rollouts()) {
+    fn do_treesearch(root: &G, id: usize, search_info: &SearchInfo, tree: &mut SearchTree<G>) {
+        while !Self::limit_reached(search_info, tree.rollouts()) {
             if search_info.flags.debug && tree.rollouts().is_power_of_two() {
                 print!("Search from tree {id}: ");
-                print!("{}", tree.show_root_distribution().unwrap());
+                print!("{}", tree.show_root_distribution(root).unwrap());
                 println!(" rollouts: {}", tree.rollouts());
                 std::io::stdout().flush().unwrap();
             }
@@ -266,9 +270,14 @@ impl<G: Game> MCTS<G> {
                 );
                 #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
                 let avg_depth = tree.average_depth().round() as u64;
+                let q = if tree.root().to_move() == -1 {
+                    f64::from(tree.root().wins()) / f64::from(tree.rollouts()) / f64::from(WIN_SCORE)
+                } else {
+                    1.0 - f64::from(tree.root().wins()) / f64::from(tree.rollouts()) / f64::from(WIN_SCORE)
+                };
                 println!(
                     "q: {:.3} eval: {:.3} depth: {}/{} pv: {}",
-                    f64::from(tree.root().wins()) / f64::from(tree.rollouts()) / f64::from(WIN_SCORE),
+                    q,
                     tree.eval(),
                     avg_depth,
                     tree.pv_depth(),
@@ -276,17 +285,26 @@ impl<G: Game> MCTS<G> {
                 );
                 std::io::stdout().flush().unwrap();
             }
-            Self::select_expand_simulate_backpropagate(&search_info, tree);
+            Self::select_expand_simulate_backpropagate(root, search_info, tree);
             tree.inc_rollouts();
         }
     }
 
-    fn select_expand_simulate_backpropagate(search_info: &SearchInfo, tree: &mut SearchTree<G>) {
-        let promising_node_idx = Self::select(ROOT_IDX, tree, search_info);
-        let promising_node = &tree[promising_node_idx];
+    /// The main search loop of the MCTS algorithm.
+    /// 
+    /// This function has four stages:
+    /// 1. Select a node to expand, based on the UCT formula.
+    /// 2. Expand the selected node.
+    /// 3. Simulate the game from the expanded node.
+    /// 4. Backpropagate the result of the simulation up the tree.
+    fn select_expand_simulate_backpropagate(root: &G, search_info: &SearchInfo, tree: &mut SearchTree<G>) {
+        // Each time we perform SESB, we have to walk a position down the tree, making moves as we go.
+        let mut traversing_state = root.clone();
 
-        if !promising_node.terminal() {
-            tree.expand(promising_node_idx);
+        let promising_node_idx = Self::select(ROOT_IDX, tree, search_info, &mut traversing_state);
+
+        if !traversing_state.is_terminal() {
+            tree.expand(promising_node_idx, &traversing_state);
         }
 
         let promising_node = unsafe { tree.get_unchecked(promising_node_idx) }; // makes borrowchk happy
@@ -296,32 +314,33 @@ impl<G: Game> MCTS<G> {
             promising_node_idx
         };
 
-        let q = Self::simulate(search_info, node_to_explore, tree);
+        let q = Self::simulate(search_info, node_to_explore, tree, &mut traversing_state);
 
         Self::backprop(node_to_explore, q, tree);
     }
 
+    /// BACKPROPAGATE: Given a node and a Q-value, backpropagate the Q-value up the tree.
     fn backprop(node_idx: usize, q: f32, tree: &mut SearchTree<G>) {
         let mut node = tree.get_mut(node_idx).expect("called backprop on root");
         loop {
             node.update(q);
             if let Some(parent_idx) = node.parent() {
-                node = &mut tree[parent_idx]; // this could be get_unchecked, but it feels dangerous
+                node = unsafe { tree.get_unchecked_mut(parent_idx) };
             } else {
                 break;
             }
         }
     }
 
-    fn simulate(search_info: &SearchInfo, node_idx: usize, tree: &mut SearchTree<G>) -> f32 {
+    /// SIMULATE: Given a node, simulate the game from that node, and return the resulting Q-value.
+    fn simulate(search_info: &SearchInfo, node_idx: usize, tree: &mut SearchTree<G>, rollout_board: &mut G) -> f32 {
         use RolloutPolicy::{
-            Decisive, DecisiveQualityScaled, Random, RandomCutoff, RandomQualityScaled,
+            Decisive, DecisiveQualityScaled, Random, RandomCutoff, RandomQualityScaled, DecisiveCutoff, MetaAggregated,
         };
         let node = &tree[node_idx];
-        let playout_board = node.state().clone();
 
         // test for immediate loss
-        let status = playout_board.evaluate();
+        let status = rollout_board.evaluate();
         if status == -search_info.side {
             let parent_idx = node
                 .parent()
@@ -331,16 +350,38 @@ impl<G: Game> MCTS<G> {
         }
 
         // playout
-        match search_info.flags.rollout_policy {
-            Random => Self::random_rollout(playout_board),
-            Decisive => Self::decisive_rollout(playout_board),
-            RandomQualityScaled => Self::random_rollout_qs(playout_board),
-            DecisiveQualityScaled => Self::decisive_rollout_qs(playout_board),
-            RandomCutoff => Self::random_rollout_cutoff(playout_board),
+        match &search_info.flags.rollout_policy {
+            Random => Self::random_rollout(rollout_board),
+            Decisive => Self::decisive_rollout(rollout_board),
+            RandomQualityScaled => Self::random_rollout_qs(rollout_board),
+            DecisiveQualityScaled => Self::decisive_rollout_qs(rollout_board),
+            RandomCutoff { moves } => Self::random_rollout_cutoff(rollout_board, *moves),
+            DecisiveCutoff { moves } => Self::decisive_rollout_cutoff(rollout_board, *moves),
+            MetaAggregated { policy, rollouts } => {
+                let rollouts = *rollouts;
+                let f = match policy.as_ref() {
+                    RolloutPolicy::Random => Self::random_rollout,
+                    RolloutPolicy::Decisive => Self::decisive_rollout,
+                    RolloutPolicy::RandomQualityScaled => Self::random_rollout_qs,
+                    RolloutPolicy::DecisiveQualityScaled => Self::decisive_rollout_qs,
+                    RolloutPolicy::RandomCutoff { .. } => panic!("MetaAggregated policy cannot be RandomCutoff"),
+                    RolloutPolicy::DecisiveCutoff { .. } => panic!("MetaAggregated policy cannot be DecisiveCutoff"),
+                    RolloutPolicy::MetaAggregated{ .. } => panic!("MetaAggregated policy must be a RolloutPolicy"),
+                };
+                let mut sum = 0.0;
+                for _ in 0..rollouts {
+                    let mut roller = rollout_board.clone();
+                    sum += f(&mut roller);
+                }
+                sum / (rollouts as f32)
+            },
         }
     }
 
-    fn select(root_idx: usize, tree: &mut SearchTree<G>, search_info: &SearchInfo) -> usize {
+    /// SELECT: we traverse the on-policy part of the tree, at each node we select the child
+    /// with the highest UCB1 value. As we do not store states in the tree, we have to push
+    /// moves as we go.
+    fn select(root_idx: usize, tree: &mut SearchTree<G>, search_info: &SearchInfo, state: &mut G) -> usize {
         let mut idx = root_idx;
         let mut node = &tree[idx];
         while node.has_children() {
@@ -351,90 +392,131 @@ impl<G: Game> MCTS<G> {
                 search_info.flags.exp_factor,
             ) + children.start;
             node = &tree[idx];
+            state.push(node.inbound_edge());
         }
         idx
     }
 
+    /// The random rollout policy. 
+    /// Simply plays random moves until the game ends,
+    /// then returns the result as 1.0 / 0.0 / -1.0.
     #[inline]
-    fn random_rollout(playout_board: G) -> f32 {
-        let mut board = playout_board;
-        while !board.is_terminal() {
-            board.push_random();
+    fn random_rollout(playout_board: &mut G) -> f32 {
+        while !playout_board.is_terminal() {
+            playout_board.push_random();
         }
-        f32::from(board.evaluate())
+        f32::from(playout_board.evaluate())
     }
 
+    /// A scaling function that allows for rollout results to be weighted by the quality of the
+    /// rollout, where rollouts that end more quickly are considered better, as they should be
+    /// more representative of the quality of the position they arose from.
     #[inline]
     fn scale(q: f32, moves: f32) -> f32 {
         q * (-0.04 * moves).exp()
     }
 
+    /// A quality-scaled version of [`random_rollout`](Self::random_rollout).
     #[inline]
-    fn random_rollout_qs(playout_board: G) -> f32 {
-        let mut board = playout_board;
+    fn random_rollout_qs(playout_board: &mut G) -> f32 {
         let mut moves = 1;
-        while !board.is_terminal() {
-            board.push_random();
+        while !playout_board.is_terminal() {
+            playout_board.push_random();
             moves += 1;
         }
-        let q = f32::from(board.evaluate());
+        let q = f32::from(playout_board.evaluate());
         Self::scale(q, moves as f32)
     }
 
+    /// The decisive rollout policy.
+    /// In each position, if there is a move that wins on the spot, we play that move.
+    /// Otherwise, we play a random move.
     #[inline]
-    fn decisive_rollout(playout_board: G) -> f32 {
-        let mut board = playout_board;
-        while !board.is_terminal() {
+    fn decisive_rollout(playout_board: &mut G) -> f32 {
+        while !playout_board.is_terminal() {
             let mut buffer = G::Buffer::default();
-            board.generate_moves(&mut buffer);
+            playout_board.generate_moves(&mut buffer);
             for &m in buffer.iter() {
-                let mut copy = board.clone();
-                copy.push(m);
-                let evaluation = copy.evaluate();
+                playout_board.push(m);
+                let evaluation = playout_board.evaluate();
+                playout_board.pop(m);
                 if evaluation != 0 {
                     return f32::from(evaluation);
                 }
             }
-            board.push_random(); // can be optimised
+            let mut rng = rand::thread_rng();
+            let idx = rng.gen_range(0..buffer.len());
+            playout_board.push(buffer[idx]);
         }
-        f32::from(board.evaluate())
+        f32::from(playout_board.evaluate())
     }
 
+    /// A quality-scaled version of [`decisive_rollout`](Self::decisive_rollout).
     #[inline]
-    fn decisive_rollout_qs(playout_board: G) -> f32 {
-        let mut board = playout_board;
+    fn decisive_rollout_qs(playout_board: &mut G) -> f32 {
         let mut moves = 1;
-        while !board.is_terminal() {
+        while !playout_board.is_terminal() {
             let mut buffer = G::Buffer::default();
-            board.generate_moves(&mut buffer);
+            playout_board.generate_moves(&mut buffer);
             for &m in buffer.iter() {
-                let mut copy = board.clone();
-                copy.push(m);
-                let evaluation = copy.evaluate();
+                playout_board.push(m);
+                let evaluation = playout_board.evaluate();
+                playout_board.pop(m);
                 if evaluation != 0 {
                     return f32::from(evaluation) / (moves as f32 + 10.0) * 10.0;
                 }
             }
-            board.push_random(); // can be optimised
+            let mut rng = rand::thread_rng();
+            let idx = rng.gen_range(0..buffer.len());
+            playout_board.push(buffer[idx]);
             moves += 1;
         }
-        let q = f32::from(board.evaluate());
+        let q = f32::from(playout_board.evaluate());
         Self::scale(q, moves as f32)
     }
 
+    /// A cutoff version of [`random_rollout`](Self::random_rollout).
+    /// This policy will stop rollouts after a fixed number of moves,
+    /// returning a Q-value of 0.0.
     #[inline]
-    fn random_rollout_cutoff(playout_board: G) -> f32 {
-        const MAX_ROLLOUT_LENGTH: usize = 20;
-        let mut board = playout_board;
-        let mut moves = 1;
-        while !board.is_terminal() {
-            board.push_random();
-            if moves > MAX_ROLLOUT_LENGTH {
+    fn random_rollout_cutoff(playout_board: &mut G, moves: usize) -> f32 {
+        let mut counter = 1;
+        while !playout_board.is_terminal() {
+            if counter > moves {
                 return 0.0;
             }
-            moves += 1;
+            playout_board.push_random();
+            counter += 1;
         }
-        f32::from(board.evaluate())
+        f32::from(playout_board.evaluate())
+    }
+
+    /// A cutoff version of [`decisive_rollout`](Self::decisive_rollout).
+    /// This policy will stop rollouts after a fixed number of moves,
+    /// returning a Q-value of 0.0.
+    #[inline]
+    fn decisive_rollout_cutoff(playout_board: &mut G, moves: usize) -> f32 {
+        let mut counter = 1;
+        while !playout_board.is_terminal() {
+            if counter > moves {
+                return 0.0;
+            }
+            let mut buffer = G::Buffer::default();
+            playout_board.generate_moves(&mut buffer);
+            for &m in buffer.iter() {
+                playout_board.push(m);
+                let evaluation = playout_board.evaluate();
+                playout_board.pop(m);
+                if evaluation != 0 {
+                    return f32::from(evaluation);
+                }
+            }
+            let mut rng = rand::thread_rng();
+            let idx = rng.gen_range(0..buffer.len());
+            playout_board.push(buffer[idx]);
+            counter += 1;
+        }
+        f32::from(playout_board.evaluate())
     }
 }
 

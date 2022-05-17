@@ -1,4 +1,5 @@
 pub const WIN_SCORE: f32 = 1.0;
+pub const DRAW_SCORE: f32 = WIN_SCORE / 2.0;
 
 pub const TREE_PRINT_DEPTH: usize = 2;
 pub const MAX_NODEPOOL_MEM: usize = 2 * 1024 * 1024 * 1024; // 2GB

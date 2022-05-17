@@ -1,3 +1,5 @@
+#![allow(clippy::cast_possible_truncation)]
+
 use std::{
     fmt::{Debug, Display},
     ops::Index,
@@ -9,12 +11,12 @@ use crate::{game::{Game, MoveBuffer}, datageneration::{StateVector, Vectorisable
 
 type Bitrow = u8;
 
-const ROWS: usize = 6;
-const COLS: usize = 7;
+const ROWS: u8 = 6;
+const COLS: u8 = 7;
 const BITROW_MASK: Bitrow = 0b0111_1111;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct C4Move(pub usize);
+pub struct C4Move(pub u8);
 
 impl Debug for C4Move {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -30,26 +32,26 @@ impl Display for C4Move {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Connect4 {
-    board: [[Bitrow; ROWS]; 2],
+    board: [[Bitrow; ROWS as usize]; 2],
     moves: u8,
 }
 
 impl Connect4 {
     pub const fn new() -> Self {
         Self {
-            board: [[0; ROWS]; 2],
+            board: [[0; ROWS as usize]; 2],
             moves: 0,
         }
     }
-
-    const fn filled(&self, row: usize, col: usize) -> bool {
-        self.board[0][row] & (1 << col) != 0 || self.board[1][row] & (1 << col) != 0
+    
+    const fn filled(&self, row: u8, col: u8) -> bool {
+        self.board[0][row as usize] & (1 << col) != 0 || self.board[1][row as usize] & (1 << col) != 0
     }
 
-    const fn player_at(&self, row: usize, col: usize) -> i8 {
-        if self.board[0][row] & (1 << col) != 0 {
+    const fn player_at(&self, row: u8, col: u8) -> i8 {
+        if self.board[0][row as usize] & (1 << col) != 0 {
             1
-        } else if self.board[1][row] & (1 << col) != 0 {
+        } else if self.board[1][row as usize] & (1 << col) != 0 {
             -1
         } else {
             0
@@ -57,14 +59,14 @@ impl Connect4 {
     }
 
     #[inline]
-    const fn probe(&self, row: usize, col: usize) -> bool {
-        self.board[((self.moves & 1) ^ 1) as usize][row] & (1 << col) != 0
+    const fn probe(&self, row: u8, col: u8) -> bool {
+        self.board[((self.moves & 1) ^ 1) as usize][row as usize] & (1 << col) != 0
     }
 
     fn horizontal_eval(&self) -> i8 {
         for row in 0..ROWS {
             for bitshift in 0..COLS {
-                if ((self.board[((self.moves + 1) & 1) as usize][row] >> bitshift) & 0b1111)
+                if ((self.board[((self.moves + 1) & 1) as usize][row as usize] >> bitshift) & 0b1111)
                     == 0b1111
                 {
                     return -self.turn();
@@ -169,7 +171,7 @@ impl Game for Connect4 {
         let mut bb = !bb & BITROW_MASK;
 
         while bb != 0 {
-            moves.push(C4Move(bb.trailing_zeros() as usize));
+            moves.push(C4Move(bb.trailing_zeros() as u8));
             bb &= bb - 1;
         }
     }
@@ -209,7 +211,7 @@ impl Game for Connect4 {
         }
 
         assert!(row > 0 && row - 1 < ROWS);
-        self.board[(self.moves & 1) as usize][row - 1] |= 1 << m.0;
+        self.board[(self.moves & 1) as usize][row as usize - 1] |= 1 << m.0;
 
         self.moves += 1;
     }
@@ -225,7 +227,7 @@ impl Game for Connect4 {
         }
 
         assert!(row < ROWS);
-        self.board[(self.moves & 1) as usize][row] &= !(1 << m.0);
+        self.board[(self.moves & 1) as usize][row as usize] &= !(1 << m.0);
     }
 
     fn push_random(&mut self) {
@@ -244,13 +246,13 @@ impl Game for Connect4 {
 
         assert!(bb != 0, "you fucked up");
 
-        self.push(C4Move(bb.trailing_zeros() as usize));
+        self.push(C4Move(bb.trailing_zeros() as u8));
     }
 }
 
 impl Vectorisable for Connect4 {
     fn vectorise_state(&self) -> StateVector {
-        let mut v: Vec<u8> = Vec::with_capacity(ROWS * COLS * 2);
+        let mut v: Vec<u8> = Vec::with_capacity((ROWS * COLS * 2) as usize);
 
         for (&rowl, &rowr) in self.board[0].iter().zip(self.board[1].iter()) {
             for col_shift in 0..COLS {
@@ -259,20 +261,20 @@ impl Vectorisable for Connect4 {
             }
         }
 
-        assert_eq!(v.len(), ROWS * COLS * 2);
+        assert_eq!(v.len() as u8, ROWS * COLS * 2);
         StateVector { data: v }
     }
 
     fn index_move(m: Self::Move) -> usize {
-        m.0
+        m.0 as usize
     }
 
     fn action_space() -> usize {
-        COLS
+        COLS as usize
     }
 
     fn state_vector_dimensions() -> Vec<usize> {
-        vec![ROWS, COLS, 2]
+        vec![ROWS as usize, COLS as usize, 2]
     }
 
     fn csv_header() -> String {
@@ -282,14 +284,14 @@ impl Vectorisable for Connect4 {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MoveBuf {
-    moves: [C4Move; COLS],
+    moves: [C4Move; COLS as usize],
     n_moves: usize,
 }
 
 impl Default for MoveBuf {
     fn default() -> Self {
         Self {
-            moves: [C4Move(0); COLS],
+            moves: [C4Move(0); COLS as usize],
             n_moves: 0,
         }
     }

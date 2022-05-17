@@ -30,7 +30,7 @@ use game::Game;
 
 const GAMES: usize = 1;
 
-fn fastplay<G: Game>(config: Behaviour) {
+fn fastplay<G: Game>(config: &Behaviour) {
     let mut buf = String::new();
     std::io::stdin().read_line(&mut buf).unwrap();
     let buf = buf.trim();
@@ -42,15 +42,16 @@ fn fastplay<G: Game>(config: Behaviour) {
 }
 
 fn main() {
-    fastplay::<gomoku::Gomoku<9>>(Behaviour {
+    let config = Behaviour {
         debug: false,
         readout: true,
-        limit: Limit::Rollouts(10_000_000),
+        limit: Limit::Time(std::time::Duration::from_secs(7)),
         root_parallelism_count: 1,
-        rollout_policy: RolloutPolicy::DecisiveQualityScaled,
-        exp_factor: DEFAULT_EXP_FACTOR / 5.0,
+        rollout_policy: RolloutPolicy::Decisive,
+        exp_factor: DEFAULT_EXP_FACTOR,
         training: false,
-    });
+    };
+    fastplay::<gomoku::Gomoku<15>>(&config);
     // get the command line arguments
     let args: Vec<String> = std::env::args().collect();
     assert!(args.len() >= 2, "pass the number of games to play as a CLI argument");
@@ -81,7 +82,7 @@ fn generate_data(games: u32) {
         // print progress bar   
         print!("{:.2}%     \r", f64::from(it) * 100.0 / f64::from(games));
         std::io::stdout().flush().unwrap();
-        GameRunner::<Connect4>::play_training_game(config)
+        GameRunner::<Connect4>::play_training_game(&config)
     }).reduce(|a, b| a + b).expect("failed to generate training data");
     println!("100%     ");
     episode_data.save::<Connect4>("datasets/connect4data.csv").expect("failed to write file");

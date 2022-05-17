@@ -20,8 +20,8 @@ impl<G: Game> Agent<G> for Player<G> {
             Player::Human => {
                 let mut buffer = G::Buffer::default();
                 state.generate_moves(&mut buffer);
-                println!("Your options are:");
-                println!("{}", buffer);
+                // println!("Your options are:");
+                // println!("{}", buffer);
                 let user_move = loop {
                     print!("Enter move: ");
                     std::io::stdout().flush().unwrap();
