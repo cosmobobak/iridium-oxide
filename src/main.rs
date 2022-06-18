@@ -5,11 +5,11 @@ use std::{io::Write, time::Instant};
 
 use crate::{
     gamerunner::{GameRunner, Player},
-    mcts::{Behaviour, Limit, RolloutPolicy, MCTS}, connectfour::Connect4, constants::DEFAULT_EXP_FACTOR,
+    mcts::{Behaviour, Limit, RolloutPolicy, MCTS}, games::connectfour::Connect4, constants::DEFAULT_EXP_FACTOR,
 };
 
+mod games;
 mod agent;
-mod connectfour;
 mod constants;
 mod elo;
 mod game;
@@ -17,12 +17,9 @@ mod gamerunner;
 mod iterbits;
 mod mcts;
 mod searchtree;
-mod tictactoe;
 mod treenode;
 mod uct;
-mod gomoku;
 mod datageneration;
-// mod ultimatetictactoe;
 
 #[allow(unused_imports)]
 use Player::{Computer, Human};
@@ -51,7 +48,7 @@ fn main() {
         exp_factor: DEFAULT_EXP_FACTOR,
         training: false,
     };
-    fastplay::<gomoku::Gomoku<15>>(&config);
+    fastplay::<games::gomoku::Gomoku<15>>(&config);
     // get the command line arguments
     let args: Vec<String> = std::env::args().collect();
     assert!(args.len() >= 2, "pass the number of games to play as a CLI argument");

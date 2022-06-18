@@ -7,7 +7,7 @@ use std::{
 
 use rand::Rng;
 
-use crate::{game::{Game, MoveBuffer}, datageneration::{StateVector, Vectorisable}};
+use crate::{game::{Game, MoveBuffer}, datageneration::{StateVector, VectoriseState}};
 
 type Bitrow = u8;
 
@@ -250,7 +250,7 @@ impl Game for Connect4 {
     }
 }
 
-impl Vectorisable for Connect4 {
+impl VectoriseState for Connect4 {
     fn vectorise_state(&self) -> StateVector {
         let mut v: Vec<u8> = Vec::with_capacity((ROWS * COLS * 2) as usize);
 

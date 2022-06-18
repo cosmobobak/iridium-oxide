@@ -43,7 +43,7 @@ impl Debug for Entry {
     }
 }
 
-pub trait Vectorisable: Game {
+pub trait VectoriseState: Game {
     fn csv_header() -> String;
     fn vectorise_state(&self) -> StateVector;
     fn index_move(m: Self::Move) -> usize;
@@ -74,7 +74,7 @@ pub struct GameData {
 }
 
 impl GameData {
-    pub fn save<G: Vectorisable>(&self, filename: &str) -> Result<(), std::io::Error> {
+    pub fn save<G: VectoriseState>(&self, filename: &str) -> Result<(), std::io::Error> {
         use std::io::Write;
         match File::create(filename) {
             Ok(mut file) => {
@@ -96,27 +96,27 @@ impl GameData {
     }
 }
 
-impl<G: Vectorisable> GameRunner<G> {
+impl<G: VectoriseState> GameRunner<G> {
     pub fn play_training_game(flags: &Behaviour) -> GameData {
         let mut state = G::default();
         let mut states = Vec::new();
         let mut policies = Vec::new();
         let mut engine = MCTS::new(flags);
         while !state.is_terminal() {
-            let current = state.clone();
+            let s = state;
             let SearchResults {
                 rollout_distribution,
                 new_node,
                 new_node_idx: _,
                 rollouts,
                 win_rate: _,
-            } = engine.search(&state);
+            } = engine.search(&s);
             let legal_policy = rollout_distribution
                 .into_iter()
                 .map(|rs| f64::from(rs) / f64::from(rollouts))
                 .collect::<Vec<_>>();
-            let policy = current.policy_vector(&legal_policy);
-            states.push(current.vectorise_state());
+            let policy = s.policy_vector(&legal_policy);
+            states.push(s.vectorise_state());
             policies.push(policy);
             state = new_node;
         }
