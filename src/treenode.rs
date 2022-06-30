@@ -4,7 +4,7 @@ use std::{fmt::Display, ops::Range};
 
 use rand::Rng;
 
-use crate::{constants::WIN_SCORE, game::Game};
+use crate::game::Game;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node<G: Game> {
@@ -20,7 +20,7 @@ pub struct Node<G: Game> {
 }
 
 impl<G: Game> Node<G> {
-    pub fn new(turn: i8, parent: Option<usize>, inbound_edge: G::Move) -> Self {
+    pub const fn new(turn: i8, parent: Option<usize>, inbound_edge: G::Move) -> Self {
         // perspective is set to -turn because what matters is
         // whether a player wants to "enter" a node, and so if
         // the turn is 1, then the perspective is -1, because
@@ -37,27 +37,27 @@ impl<G: Game> Node<G> {
         }
     }
 
-    pub fn children(&self) -> Range<usize> {
+    pub const fn children(&self) -> Range<usize> {
         self.first_child..self.first_child + self.n_children as usize
     }
 
-    pub fn parent(&self) -> Option<usize> {
+    pub const fn parent(&self) -> Option<usize> {
         self.parent
     }
 
-    pub fn to_move(&self) -> i8 {
+    pub const fn to_move(&self) -> i8 {
         -self.perspective
     }
 
-    pub fn wins(&self) -> f32 {
+    pub const fn wins(&self) -> f32 {
         self.value
     }
 
-    pub fn visits(&self) -> u32 {
+    pub const fn visits(&self) -> u32 {
         self.visits
     }
 
-    pub fn inbound_edge(&self) -> G::Move {
+    pub const fn inbound_edge(&self) -> G::Move {
         self.inbound_edge
     }
 
@@ -65,7 +65,7 @@ impl<G: Game> Node<G> {
         if self.visits == 0 {
             0.0
         } else {
-            f64::from(self.value) / f64::from(self.visits) / f64::from(WIN_SCORE)
+            f64::from(self.value) / f64::from(self.visits)
         }
     }
 
@@ -77,8 +77,8 @@ impl<G: Game> Node<G> {
         let perspective_q = q * f32::from(self.perspective);
         // the whole negative-positive thing really sucks
         assert!((-1.0..=1.0).contains(&q), "q holds invalid value: {}", q);
-        let value = (perspective_q + 1.0) / 2.0 * WIN_SCORE;
-        assert!((0.0..=WIN_SCORE).contains(&value), "computed value holds invalid value: expected in range [0, {}], got {}", WIN_SCORE, value);
+        let value = (perspective_q + 1.0) / 2.0;
+        assert!((0.0..=1.0).contains(&value), "computed value holds invalid value: expected in range [0, 1], got {}", value);
         self.value += value;
     }
 
@@ -91,7 +91,7 @@ impl<G: Game> Node<G> {
         self.n_children = count.try_into().unwrap_or_else(|_| panic!("cannot handle more than {} children at once.", u16::MAX));
     }
 
-    pub fn has_children(&self) -> bool {
+    pub const fn has_children(&self) -> bool {
         self.n_children > 0
     }
 

@@ -17,7 +17,7 @@ impl<G: Game> Agent<G> for Player<G> {
     fn transition(&mut self, state: G) -> G {
         let mut state = state;
         match self {
-            Player::Human => {
+            Self::Human => {
                 let mut buffer = G::Buffer::default();
                 state.generate_moves(&mut buffer);
                 // println!("Your options are:");
@@ -39,7 +39,7 @@ impl<G: Game> Agent<G> for Player<G> {
                 state.push(user_move);
                 state
             }
-            Player::Computer(agent) => agent.best_next_board(&state),
+            Self::Computer(agent) => agent.best_next_board(&state),
         }
     }
 }
@@ -49,7 +49,7 @@ pub struct GameRunner<G: Game> {
 }
 
 impl<G: Game + Default> GameRunner<G> {
-    pub fn new(player1: Player<G>, player2: Player<G>) -> Self {
+    pub const fn new(player1: Player<G>, player2: Player<G>) -> Self {
         Self {
             players: [player1, player2],
         }

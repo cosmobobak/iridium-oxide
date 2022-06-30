@@ -1,12 +1,12 @@
 #![allow(clippy::cast_precision_loss)]
 
 use std::{
-    fmt::{Display, self},
+    fmt::{Display, self, Write},
     ops::{Index, IndexMut},
 };
 
 use crate::{
-    constants::{MAX_NODEPOOL_MEM, ROOT_IDX, TREE_PRINT_DEPTH, WIN_SCORE},
+    constants::{MAX_NODEPOOL_MEM, ROOT_IDX, TREE_PRINT_DEPTH},
     game::{Game, MoveBuffer},
     treenode::Node,
 };
@@ -76,7 +76,7 @@ impl<G: Game> SearchTree<G> {
         self.rollouts += 1;
     }
 
-    pub fn rollouts(&self) -> u32 {
+    pub const fn rollouts(&self) -> u32 {
         self.rollouts
     }
 
@@ -100,7 +100,6 @@ impl<G: Game> SearchTree<G> {
     }
 
     pub fn show_root_distribution(&self, root: &G) -> Result<String, fmt::Error> {
-        use std::fmt::Write;
         let mut buf = String::new();
         let counts = self.root_distribution();
         if counts.is_empty() {
@@ -221,7 +220,7 @@ impl<G: Game> SearchTree<G> {
                 break;
             }
             idx = self.best_child_by_visits(idx);
-            buf.push_str(&format!("{} ", self.nodes.get(idx).unwrap().inbound_edge()));
+            write!(buf, "{} ", self.nodes.get(idx).unwrap().inbound_edge()).unwrap();
         }
         buf
     }
@@ -257,8 +256,8 @@ impl<G: Game> SearchTree<G> {
         let q = root.wins();
         let n = root.visits();
         assert_eq!(n, self.rollouts);
-        // scale [0, WIN_SCORE] to [-1, 1]
-        let zero_to_one = f64::from(q) / f64::from(n) / f64::from(WIN_SCORE);
+        // scale [0, 1] to [-1, 1]
+        let zero_to_one = f64::from(q) / f64::from(n);
         zero_to_one.mul_add(2.0, -1.0) * f64::from(-self.nodes.first().unwrap().to_move())
     }
 }

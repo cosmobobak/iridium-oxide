@@ -1,7 +1,6 @@
 #![allow(clippy::cast_precision_loss)]
 
 use rand::Rng;
-use rayon::prelude::*;
 
 use std::{
     fmt::Display,
@@ -10,11 +9,11 @@ use std::{
 };
 
 use crate::{
-    constants::{MAX_NODEPOOL_MEM, N_INF, ROOT_IDX, WIN_SCORE, DEFAULT_EXP_FACTOR},
+    constants::{MAX_NODEPOOL_MEM, N_INF, ROOT_IDX, DEFAULT_EXP_FACTOR},
     game::{Game, MoveBuffer},
     searchtree::SearchTree,
     treenode::Node,
-    uct,
+    ucb,
 };
 
 /// Determines whether we limit the search by time or by number of nodes.
@@ -103,7 +102,7 @@ struct SearchInfo {
 #[allow(clippy::upper_case_acronyms)]
 pub struct MCTS<G: Game> {
     search_info: SearchInfo,
-    trees: Vec<SearchTree<G>>,
+    tree: SearchTree<G>,
 }
 
 impl<G: Game> MCTS<G> {
@@ -116,16 +115,8 @@ impl<G: Game> MCTS<G> {
                 side: 1,
                 start_time: None,
             },
-            trees: (0..flags.root_parallelism_count)
-                .map(|_| {
-                    SearchTree::with_capacity(Self::NODEPOOL_SIZE / flags.root_parallelism_count)
-                })
-                .collect(),
+            tree: SearchTree::with_capacity(Self::NODEPOOL_SIZE),
         }
-    }
-
-    pub fn get_trees(&self) -> &[SearchTree<G>] {
-        &self.trees
     }
 
     fn limit_reached(search_info: &SearchInfo, rollouts: u32) -> bool {
@@ -142,51 +133,16 @@ impl<G: Game> MCTS<G> {
     pub fn search(&mut self, board: &G) -> SearchResults<G> {
         self.search_info.start_time = Some(Instant::now());
 
-        self.trees
-            .iter_mut()
-            .for_each(|tree| tree.setup(board.clone()));
+        self.tree.setup(board.clone());
+        Self::do_treesearch(board, &self.search_info, &mut self.tree);
 
-        assert_eq!(
-            self.trees.len(),
-            self.search_info.flags.root_parallelism_count
-        );
-        self.trees
-            .par_iter_mut()
-            .enumerate()
-            .for_each(|(id, tree)| {
-                Self::do_treesearch(board, id, &self.search_info, tree);
-            });
+        let rollout_distribution = self
+            .tree
+            .root_rollout_distribution();
 
-        let rollout_distributions = self
-            .trees
-            .iter()
-            .map(SearchTree::root_rollout_distribution)
-            .collect::<Vec<_>>();
+        let avg_win_rate = self.tree.root().win_rate();
 
-        if self.search_info.flags.debug {
-            for dist in &rollout_distributions {
-                println!("{:?}", dist);
-            }
-        }
-
-        let mut fused_distribution = vec![0; rollout_distributions[0].len()];
-        for dist in &rollout_distributions {
-            for (i, &count) in dist.iter().enumerate() {
-                fused_distribution[i] += count;
-            }
-        }
-
-        assert!(self.trees.len() < 128);
-        #[allow(clippy::cast_precision_loss)]
-        let len_as_f64 = self.trees.len() as f64;
-        let avg_win_rate = self
-            .trees
-            .iter()
-            .map(|tree| tree.root().win_rate())
-            .sum::<f64>()
-            / len_as_f64;
-
-        let total_rollouts = self.trees.iter().map(SearchTree::rollouts).sum::<u32>();
+        let total_rollouts = self.tree.rollouts();
         if let Limit::Rollouts(x) = self.search_info.flags.limit {
             #[allow(clippy::cast_possible_truncation)]
             let expected_rollouts = x * self.search_info.flags.root_parallelism_count as u32;
@@ -194,9 +150,9 @@ impl<G: Game> MCTS<G> {
         }
 
         let move_chosen = if self.search_info.flags.training {
-            sample_move_index_from_rollouts(&fused_distribution)
+            sample_move_index_from_rollouts(&rollout_distribution)
         } else {
-            let best = fused_distribution
+            let best = rollout_distribution
                 .iter()
                 .enumerate()
                 .max_by_key(|(_, &count)| count)
@@ -205,15 +161,14 @@ impl<G: Game> MCTS<G> {
             best
         };
 
-        let first_tree = self.trees.first().unwrap();
-        let root_children = first_tree.root().children();
+        let root_children = self.tree.root().children();
         let new_node_idx = move_chosen + root_children.start;
-        let chosen_move = first_tree[new_node_idx].inbound_edge();
+        let chosen_move = self.tree[new_node_idx].inbound_edge();
         let mut new_node = board.clone();
         new_node.push(chosen_move);
 
         SearchResults {
-            rollout_distribution: fused_distribution,
+            rollout_distribution,
             new_node,
             new_node_idx,
             rollouts: total_rollouts,
@@ -255,10 +210,9 @@ impl<G: Game> MCTS<G> {
         new_node
     }
 
-    fn do_treesearch(root: &G, id: usize, search_info: &SearchInfo, tree: &mut SearchTree<G>) {
+    fn do_treesearch(root: &G, search_info: &SearchInfo, tree: &mut SearchTree<G>) {
         while !Self::limit_reached(search_info, tree.rollouts()) {
             if search_info.flags.debug && tree.rollouts().is_power_of_two() {
-                print!("Search from tree {id}: ");
                 print!("{}", tree.show_root_distribution(root).unwrap());
                 println!(" rollouts: {}", tree.rollouts());
                 std::io::stdout().flush().unwrap();
@@ -271,9 +225,9 @@ impl<G: Game> MCTS<G> {
                 #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
                 let avg_depth = tree.average_depth().round() as u64;
                 let q = if tree.root().to_move() == -1 {
-                    f64::from(tree.root().wins()) / f64::from(tree.rollouts()) / f64::from(WIN_SCORE)
+                    f64::from(tree.root().wins()) / f64::from(tree.rollouts())
                 } else {
-                    1.0 - f64::from(tree.root().wins()) / f64::from(tree.rollouts()) / f64::from(WIN_SCORE)
+                    1.0 - f64::from(tree.root().wins()) / f64::from(tree.rollouts())
                 };
                 println!(
                     "q: {:.3} eval: {:.3} depth: {}/{} pv: {}",
@@ -378,7 +332,7 @@ impl<G: Game> MCTS<G> {
         }
     }
 
-    /// SELECT: we traverse the on-policy part of the tree, at each node we select the child
+    /// SELECT: we traverse the on-policy (in-memory) part of the tree, at each node we select the child
     /// with the highest UCB1 value. As we do not store states in the tree, we have to push
     /// moves as we go.
     fn select(root_idx: usize, tree: &mut SearchTree<G>, search_info: &SearchInfo, state: &mut G) -> usize {
@@ -386,7 +340,7 @@ impl<G: Game> MCTS<G> {
         let mut node = &tree[idx];
         while node.has_children() {
             let children = node.children();
-            idx = uct::best(
+            idx = ucb::best(
                 &tree.nodes[children.clone()],
                 node.visits(),
                 search_info.flags.exp_factor,

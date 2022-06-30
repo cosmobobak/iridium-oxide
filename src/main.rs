@@ -5,7 +5,7 @@ use std::{io::Write, time::Instant};
 
 use crate::{
     gamerunner::{GameRunner, Player},
-    mcts::{Behaviour, Limit, RolloutPolicy, MCTS}, games::connectfour::Connect4, constants::DEFAULT_EXP_FACTOR,
+    mcts::{Behaviour, Limit, RolloutPolicy, MCTS}, games::connectfour::Connect4,
 };
 
 mod games;
@@ -18,7 +18,7 @@ mod iterbits;
 mod mcts;
 mod searchtree;
 mod treenode;
-mod uct;
+mod ucb;
 mod datageneration;
 
 #[allow(unused_imports)]
@@ -39,16 +39,16 @@ fn fastplay<G: Game>(config: &Behaviour) {
 }
 
 fn main() {
-    let config = Behaviour {
-        debug: false,
-        readout: true,
-        limit: Limit::Time(std::time::Duration::from_secs(7)),
-        root_parallelism_count: 1,
-        rollout_policy: RolloutPolicy::Decisive,
-        exp_factor: DEFAULT_EXP_FACTOR,
-        training: false,
-    };
-    fastplay::<games::gomoku::Gomoku<15>>(&config);
+    // let config = Behaviour {
+    //     debug: false,
+    //     readout: true,
+    //     limit: Limit::Time(std::time::Duration::from_secs(3)),
+    //     root_parallelism_count: 1,
+    //     rollout_policy: RolloutPolicy::Decisive,
+    //     exp_factor: DEFAULT_EXP_FACTOR,
+    //     training: false,
+    // };
+    
     // get the command line arguments
     let args: Vec<String> = std::env::args().collect();
     assert!(args.len() >= 2, "pass the number of games to play as a CLI argument");
@@ -67,7 +67,7 @@ fn generate_data(games: u32) {
     let limit = Limit::Rollouts(500_000);
     let config = Behaviour {
         debug: false,
-        readout: true,
+        readout: false,
         limit,
         root_parallelism_count: 1,
         rollout_policy: RolloutPolicy::Random,
