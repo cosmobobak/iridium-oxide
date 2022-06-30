@@ -27,6 +27,7 @@ pub enum Limit {
 /// `Random` will select a random move from the available moves.
 /// `Decisive` will try to choose an immediate win (if one exists), otherwise it will select a random move.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum RolloutPolicy {
     Random,
     Decisive,

@@ -48,17 +48,6 @@ pub struct SearchTree<G: Game> {
 }
 
 impl<G: Game> SearchTree<G> {
-    const NODEPOOL_SIZE: usize = MAX_NODEPOOL_MEM / std::mem::size_of::<Node<G>>();
-
-    pub fn new() -> Self {
-        Self {
-            root: None,
-            nodes: Vec::with_capacity(Self::NODEPOOL_SIZE),
-            capacity: Self::NODEPOOL_SIZE,
-            rollouts: 0,
-        }
-    }
-
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             root: None,
