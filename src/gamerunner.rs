@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::io::Write;
 
 use crate::{
@@ -28,14 +30,12 @@ impl<G: Game> Agent<G> for Player<G> {
                     let mut user_input = String::new();
                     std::io::stdin().read_line(&mut user_input).unwrap();
                     let user_input = user_input.trim().to_uppercase();
-                    let needle = buffer
-                        .iter()
-                        .find(|&&m| format!("{}", m) == user_input);
+                    let needle = buffer.iter().find(|&&m| format!("{}", m) == user_input);
                     if let Some(needle) = needle {
                         break *needle;
                     }
                 };
-                
+
                 state.push(user_move);
                 state
             }

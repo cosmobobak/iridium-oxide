@@ -1,8 +1,4 @@
-use crate::{
-    constants::NODE_UNVISITED_VALUE,
-    game::Game,
-    treenode::Node,
-};
+use crate::{constants::NODE_UNVISITED_VALUE, game::Game, treenode::Node};
 
 fn ucb1_value(parent_visits: u32, q_value: f32, visits: u32, exp_factor: f64) -> f64 {
     if visits == 0 {

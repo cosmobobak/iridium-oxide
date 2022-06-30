@@ -1,12 +1,12 @@
 #![allow(clippy::cast_precision_loss)]
 
 use std::{
-    fmt::{Display, self, Write},
+    fmt::{self, Display, Write},
     ops::{Index, IndexMut},
 };
 
 use crate::{
-    constants::{MAX_NODEPOOL_MEM, ROOT_IDX, TREE_PRINT_DEPTH},
+    constants::{ROOT_IDX, TREE_PRINT_DEPTH},
     game::{Game, MoveBuffer},
     treenode::Node,
 };
@@ -70,8 +70,7 @@ impl<G: Game> SearchTree<G> {
     }
 
     pub fn root_rollout_distribution(&self) -> Vec<u32> {
-        self
-            .root()
+        self.root()
             .children()
             .map(|idx| self.nodes[idx].visits())
             .collect::<Vec<_>>()
@@ -92,7 +91,7 @@ impl<G: Game> SearchTree<G> {
         let mut buf = String::new();
         let counts = self.root_distribution();
         if counts.is_empty() {
-            return Ok("No moves yet searched.".to_string())
+            return Ok("No moves yet searched.".to_string());
         }
         let mut buffer = G::Buffer::default();
         root.generate_moves(&mut buffer);
@@ -111,7 +110,8 @@ impl<G: Game> SearchTree<G> {
 
     pub fn setup(&mut self, root: G) {
         self.clear();
-        self.nodes.push(Node::new(root.turn(), None, G::Move::default()));
+        self.nodes
+            .push(Node::new(root.turn(), None, G::Move::default()));
         self.root = Some(root);
         self.rollouts = 0;
     }
@@ -138,7 +138,8 @@ impl<G: Game> SearchTree<G> {
                 println!("{}", self);
                 panic!("SearchTree full, aborting...");
             }
-            self.nodes.push(Node::new(-movegen_board.turn(), Some(idx), *m));
+            self.nodes
+                .push(Node::new(-movegen_board.turn(), Some(idx), *m));
         }
         // SAFETY: we have already accessed this location in the vector
         // and we do not reduce the size of the vector between the accesses.
@@ -230,7 +231,10 @@ impl<G: Game> SearchTree<G> {
     fn average_depth_of(&self, node_idx: usize) -> f64 {
         let node = self.nodes.get(node_idx).expect("Node does not exist");
         if node.has_children() {
-            node.children().map(|i| self.average_depth_of(i) + 1.0).sum::<f64>() / node.children().len() as f64
+            node.children()
+                .map(|i| self.average_depth_of(i) + 1.0)
+                .sum::<f64>()
+                / node.children().len() as f64
         } else {
             0.0
         }

@@ -7,7 +7,10 @@ use std::{
 
 use rand::Rng;
 
-use crate::{game::{Game, MoveBuffer}, datageneration::{VectoriseState, StateVector}};
+use crate::{
+    datageneration::{StateVector, VectoriseState},
+    game::{Game, MoveBuffer},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TicTacToe {
@@ -216,7 +219,6 @@ impl Game for TicTacToe {
 }
 
 impl VectoriseState for TicTacToe {
-
     fn action_space() -> usize {
         9
     }

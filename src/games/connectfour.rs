@@ -7,7 +7,10 @@ use std::{
 
 use rand::Rng;
 
-use crate::{game::{Game, MoveBuffer}, datageneration::{StateVector, VectoriseState}};
+use crate::{
+    datageneration::{StateVector, VectoriseState},
+    game::{Game, MoveBuffer},
+};
 
 type Bitrow = u8;
 
@@ -43,9 +46,10 @@ impl Connect4 {
             moves: 0,
         }
     }
-    
+
     const fn filled(&self, row: u8, col: u8) -> bool {
-        self.board[0][row as usize] & (1 << col) != 0 || self.board[1][row as usize] & (1 << col) != 0
+        self.board[0][row as usize] & (1 << col) != 0
+            || self.board[1][row as usize] & (1 << col) != 0
     }
 
     const fn player_at(&self, row: u8, col: u8) -> i8 {
@@ -66,7 +70,8 @@ impl Connect4 {
     fn horizontal_eval(&self) -> i8 {
         for row in 0..ROWS {
             for bitshift in 0..COLS {
-                if ((self.board[((self.moves + 1) & 1) as usize][row as usize] >> bitshift) & 0b1111)
+                if ((self.board[((self.moves + 1) & 1) as usize][row as usize] >> bitshift)
+                    & 0b1111)
                     == 0b1111
                 {
                     return -self.turn();

@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    constants::{MAX_NODEPOOL_MEM, N_INF, ROOT_IDX, DEFAULT_EXP_FACTOR},
+    constants::{DEFAULT_EXP_FACTOR, MAX_NODEPOOL_MEM, N_INF, ROOT_IDX},
     game::{Game, MoveBuffer},
     searchtree::SearchTree,
     treenode::Node,
@@ -18,6 +18,7 @@ use crate::{
 
 /// Determines whether we limit the search by time or by number of nodes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum Limit {
     Time(Duration),
     Rollouts(u32),
@@ -54,7 +55,7 @@ impl Default for Behaviour {
     fn default() -> Self {
         use Limit::Rollouts;
         Self {
-            debug: true,
+            debug: false,
             readout: true,
             limit: Rollouts(100_000),
             root_parallelism_count: 1,
@@ -137,9 +138,7 @@ impl<G: Game> MCTS<G> {
         self.tree.setup(board.clone());
         Self::do_treesearch(board, &self.search_info, &mut self.tree);
 
-        let rollout_distribution = self
-            .tree
-            .root_rollout_distribution();
+        let rollout_distribution = self.tree.root_rollout_distribution();
 
         let avg_win_rate = self.tree.root().win_rate();
 
@@ -246,13 +245,17 @@ impl<G: Game> MCTS<G> {
     }
 
     /// The main search loop of the MCTS algorithm.
-    /// 
+    ///
     /// This function has four stages:
     /// 1. Select a node to expand, based on the UCT formula.
     /// 2. Expand the selected node.
     /// 3. Simulate the game from the expanded node.
     /// 4. Backpropagate the result of the simulation up the tree.
-    fn select_expand_simulate_backpropagate(root: &G, search_info: &SearchInfo, tree: &mut SearchTree<G>) {
+    fn select_expand_simulate_backpropagate(
+        root: &G,
+        search_info: &SearchInfo,
+        tree: &mut SearchTree<G>,
+    ) {
         // Each time we perform SESB, we have to walk a position down the tree, making moves as we go.
         let mut traversing_state = root.clone();
 
@@ -288,9 +291,15 @@ impl<G: Game> MCTS<G> {
     }
 
     /// SIMULATE: Given a node, simulate the game from that node, and return the resulting Q-value.
-    fn simulate(search_info: &SearchInfo, node_idx: usize, tree: &mut SearchTree<G>, rollout_board: &mut G) -> f32 {
+    fn simulate(
+        search_info: &SearchInfo,
+        node_idx: usize,
+        tree: &mut SearchTree<G>,
+        rollout_board: &mut G,
+    ) -> f32 {
         use RolloutPolicy::{
-            Decisive, DecisiveQualityScaled, Random, RandomCutoff, RandomQualityScaled, DecisiveCutoff, MetaAggregated,
+            Decisive, DecisiveCutoff, DecisiveQualityScaled, MetaAggregated, Random, RandomCutoff,
+            RandomQualityScaled,
         };
         let node = &tree[node_idx];
 
@@ -319,9 +328,15 @@ impl<G: Game> MCTS<G> {
                     RolloutPolicy::Decisive => Self::decisive_rollout,
                     RolloutPolicy::RandomQualityScaled => Self::random_rollout_qs,
                     RolloutPolicy::DecisiveQualityScaled => Self::decisive_rollout_qs,
-                    RolloutPolicy::RandomCutoff { .. } => panic!("MetaAggregated policy cannot be RandomCutoff"),
-                    RolloutPolicy::DecisiveCutoff { .. } => panic!("MetaAggregated policy cannot be DecisiveCutoff"),
-                    RolloutPolicy::MetaAggregated{ .. } => panic!("MetaAggregated policy must be a RolloutPolicy"),
+                    RolloutPolicy::RandomCutoff { .. } => {
+                        panic!("MetaAggregated policy cannot be RandomCutoff")
+                    }
+                    RolloutPolicy::DecisiveCutoff { .. } => {
+                        panic!("MetaAggregated policy cannot be DecisiveCutoff")
+                    }
+                    RolloutPolicy::MetaAggregated { .. } => {
+                        panic!("MetaAggregated policy must be a RolloutPolicy")
+                    }
                 };
                 let mut sum = 0.0;
                 for _ in 0..rollouts {
@@ -329,14 +344,19 @@ impl<G: Game> MCTS<G> {
                     sum += f(&mut roller);
                 }
                 sum / (rollouts as f32)
-            },
+            }
         }
     }
 
     /// SELECT: we traverse the on-policy (in-memory) part of the tree, at each node we select the child
     /// with the highest UCB1 value. As we do not store states in the tree, we have to push
     /// moves as we go.
-    fn select(root_idx: usize, tree: &mut SearchTree<G>, search_info: &SearchInfo, state: &mut G) -> usize {
+    fn select(
+        root_idx: usize,
+        tree: &mut SearchTree<G>,
+        search_info: &SearchInfo,
+        state: &mut G,
+    ) -> usize {
         let mut idx = root_idx;
         let mut node = &tree[idx];
         while node.has_children() {
@@ -352,7 +372,7 @@ impl<G: Game> MCTS<G> {
         idx
     }
 
-    /// The random rollout policy. 
+    /// The random rollout policy.
     /// Simply plays random moves until the game ends,
     /// then returns the result as 1.0 / 0.0 / -1.0.
     #[inline]

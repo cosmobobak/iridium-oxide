@@ -35,7 +35,9 @@ pub struct Move<const N: usize> {
 impl<const N: usize> Move<N> {
     const fn new(loc: usize) -> Self {
         #[allow(clippy::cast_possible_truncation)]
-        Self { loc: loc as MoveInnerRepr }
+        Self {
+            loc: loc as MoveInnerRepr,
+        }
     }
 
     const fn row(self) -> usize {
@@ -141,13 +143,13 @@ impl<const N: usize> Gomoku<N> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Buffer<const N: usize> {
-    moves: Vec<Move<N>>
+    moves: Vec<Move<N>>,
 }
 
 impl<const N: usize> Buffer<N> {
     fn new() -> Self {
         Self {
-            moves: Vec::with_capacity(N * N)
+            moves: Vec::with_capacity(N * N),
         }
     }
 }

@@ -8,12 +8,12 @@ use crate::game::Game;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node<G: Game> {
-    first_child: usize, // 8 bytes.
-    n_children: u16, // 2 bytes.
+    first_child: usize,    // 8 bytes.
+    n_children: u16,       // 2 bytes.
     parent: Option<usize>, // 9 bytes.
 
-    value: f32, // 4 bytes.
-    visits: u32, // 4 bytes.
+    value: f32,      // 4 bytes.
+    visits: u32,     // 4 bytes.
     perspective: i8, // 1 byte.
 
     inbound_edge: G::Move, // ??? bytes.
@@ -78,7 +78,11 @@ impl<G: Game> Node<G> {
         // the whole negative-positive thing really sucks
         assert!((-1.0..=1.0).contains(&q), "q holds invalid value: {}", q);
         let value = (perspective_q + 1.0) / 2.0;
-        assert!((0.0..=1.0).contains(&value), "computed value holds invalid value: expected in range [0, 1], got {}", value);
+        assert!(
+            (0.0..=1.0).contains(&value),
+            "computed value holds invalid value: expected in range [0, 1], got {}",
+            value
+        );
         self.value += value;
     }
 
@@ -88,7 +92,9 @@ impl<G: Game> Node<G> {
 
     pub fn add_children(&mut self, start: usize, count: usize) {
         self.first_child = start;
-        self.n_children = count.try_into().unwrap_or_else(|_| panic!("cannot handle more than {} children at once.", u16::MAX));
+        self.n_children = count
+            .try_into()
+            .unwrap_or_else(|_| panic!("cannot handle more than {} children at once.", u16::MAX));
     }
 
     pub const fn has_children(&self) -> bool {

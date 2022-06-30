@@ -1,4 +1,8 @@
-use std::{fmt::{self, Display, Formatter, Debug}, ops::Add, fs::File};
+use std::{
+    fmt::{self, Debug, Display, Formatter},
+    fs::File,
+    ops::Add,
+};
 
 use crate::{
     game::{Game, MoveBuffer},
@@ -32,14 +36,22 @@ impl Display for Entry {
         for &i in &self.policy.data[..self.policy.data.len() - 1] {
             write!(f, "{i:.3},")?;
         }
-        let last = *self.policy.data.last().expect("expected nonempty policy vector");
+        let last = *self
+            .policy
+            .data
+            .last()
+            .expect("expected nonempty policy vector");
         write!(f, "{:.3}", last)
     }
 }
 
 impl Debug for Entry {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "outcome: {}, move_count: {}, \nstate: \n {:?}, \npolicy: \n {:?}", self.outcome, self.move_count, self.state.data, self.policy.data)
+        write!(
+            f,
+            "outcome: {}, move_count: {}, \nstate: \n {:?}, \npolicy: \n {:?}",
+            self.outcome, self.move_count, self.state.data, self.policy.data
+        )
     }
 }
 
@@ -92,7 +104,15 @@ impl GameData {
     pub fn summary(&self) {
         #[allow(clippy::cast_precision_loss)]
         let len_float = self.entries.len() as f64;
-        println!("Mean game outcome: {:.3}", f64::from(self.entries.iter().map(|e| i32::from(e.outcome)).sum::<i32>()) / len_float);
+        println!(
+            "Mean game outcome: {:.3}",
+            f64::from(
+                self.entries
+                    .iter()
+                    .map(|e| i32::from(e.outcome))
+                    .sum::<i32>()
+            ) / len_float
+        );
     }
 }
 

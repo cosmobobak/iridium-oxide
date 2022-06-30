@@ -1,5 +1,7 @@
-
-use std::{fmt::{Display, Formatter, self}, ops::Index};
+use std::{
+    fmt::{self, Display, Formatter},
+    ops::Index,
+};
 
 use crate::game::{Game, MoveBuffer};
 
@@ -25,7 +27,9 @@ struct Move(u8);
 impl Display for Move {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         #![allow(clippy::cast_possible_truncation)]
-        if self == &NO_MOVE { return write!(f, "NO_MOVE"); }
+        if self == &NO_MOVE {
+            return write!(f, "NO_MOVE");
+        }
         let row = self.0 / BOARD_WIDTH as u8;
         let col = self.0 % BOARD_WIDTH as u8;
         write!(f, "{}{}", (b'A' + row as u8) as char, col + 1)
@@ -49,7 +53,7 @@ struct UltimateTicTacToe {
 
 impl UltimateTicTacToe {
     pub const fn new() -> Self {
-        Self { 
+        Self {
             pieces: [NO_PIECE; BOARD_WIDTH * BOARD_HEIGHT],
             moves: 0,
             forced_box: NO_FORCED_BOX,
