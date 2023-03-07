@@ -21,7 +21,7 @@ pub trait Game: Clone + Eq + Debug + Display + Default + Send + Sync {
     fn evaluate(&self) -> i8;
     fn push(&mut self, m: Self::Move);
     fn pop(&mut self, m: Self::Move);
-    fn push_random(&mut self);
+    fn push_random(&mut self, rng: &mut fastrand::Rng);
 
     fn outcome(&self) -> Option<&str> {
         if self.is_terminal() {

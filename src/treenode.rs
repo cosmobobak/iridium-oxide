@@ -76,12 +76,11 @@ impl<G: Game> Node<G> {
         // scale the range of q from [-1, 1] to [0, WIN_SCORE]
         let perspective_q = q * f32::from(self.perspective);
         // the whole negative-positive thing really sucks
-        assert!((-1.0..=1.0).contains(&q), "q holds invalid value: {}", q);
+        assert!((-1.0..=1.0).contains(&q), "q holds invalid value: {q}");
         let value = (perspective_q + 1.0) / 2.0;
         assert!(
             (0.0..=1.0).contains(&value),
-            "computed value holds invalid value: expected in range [0, 1], got {}",
-            value
+            "computed value holds invalid value: expected in range [0, 1], got {value}"
         );
         self.value += value;
     }

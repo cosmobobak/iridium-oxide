@@ -45,16 +45,16 @@ fn elo_diff_from_percent(percentage: f64) -> f64 {
 }
 
 fn phi_inv(p: f64) -> f64 {
-    f64::sqrt(2.0) * inverse_error(2.0 * p - 1.0)
+    f64::sqrt(2.0) * inverse_error(2.0f64.mul_add(p, -1.0))
 }
 
 fn inverse_error(x: f64) -> f64 {
     let pi = PI;
     let a = 8.0 * (pi - 3.0) / (3.0 * pi * (4.0 - pi));
-    let y = (1.0 - x * x).ln();
+    let y = x.mul_add(-x, 1.0).ln();
     let z = 2.0 / (pi * a) + y / 2.0;
 
-    let ret = f64::sqrt(f64::sqrt(z.powi(2) - y / a) - z);
+    let ret = f64::sqrt(f64::sqrt(z.mul_add(z, -y / a)) - z);
 
     if x < 0.0 {
         return -ret;

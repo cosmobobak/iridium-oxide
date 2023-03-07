@@ -41,7 +41,7 @@ impl Display for Entry {
             .data
             .last()
             .expect("expected nonempty policy vector");
-        write!(f, "{:.3}", last)
+        write!(f, "{last:.3}")
     }
 }
 
@@ -93,7 +93,7 @@ impl GameData {
                 let header = G::csv_header();
                 writeln!(file, "{header}")?;
                 for entry in &self.entries {
-                    writeln!(file, "{}", entry)?;
+                    writeln!(file, "{entry}")?;
                 }
                 Ok(())
             }
@@ -184,7 +184,7 @@ impl Add for GameData {
 impl Display for GameData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for entry in &self.entries {
-            writeln!(f, "{}", entry)?;
+            writeln!(f, "{entry}")?;
         }
         Ok(())
     }
@@ -192,10 +192,10 @@ impl Display for GameData {
 
 impl Debug for GameData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}", self)?;
+        writeln!(f, "{self}")?;
         writeln!(f, "First five entries:")?;
         for entry in self.entries.iter().take(5) {
-            writeln!(f, "{:?}", entry)?;
+            writeln!(f, "{entry:?}")?;
         }
         Ok(())
     }

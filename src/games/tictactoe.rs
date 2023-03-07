@@ -5,8 +5,6 @@ use std::{
     ops::Index,
 };
 
-use rand::Rng;
-
 use crate::{
     datageneration::{StateVector, VectoriseState},
     game::{Game, MoveBuffer},
@@ -72,7 +70,7 @@ impl Display for TTTMoveBuf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[")?;
         for m in &self.data[..self.n_moves - 1] {
-            write!(f, "{}, ", m)?;
+            write!(f, "{m}, ")?;
         }
         write!(f, "{}]", self.data[self.n_moves - 1])
     }
@@ -206,11 +204,11 @@ impl Game for TicTacToe {
         self.board[self.moves & 1] ^= 1 << m.0;
     }
 
-    fn push_random(&mut self) {
+    fn push_random(&mut self, rng: &mut fastrand::Rng) {
         let bb = self.board[0] | self.board[1];
         let mut bb = !bb & 0b111_111_111;
         let possible_moves = bb.count_ones() as usize;
-        let choice = rand::thread_rng().gen_range(0..possible_moves);
+        let choice = rng.usize(..possible_moves);
         for _ in 0..choice {
             bb &= bb - 1; // clear the least significant bit set
         }

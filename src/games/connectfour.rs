@@ -5,8 +5,6 @@ use std::{
     ops::Index,
 };
 
-use rand::Rng;
-
 use crate::{
     datageneration::{StateVector, VectoriseState},
     game::{Game, MoveBuffer},
@@ -235,13 +233,13 @@ impl Game for Connect4 {
         self.board[(self.moves & 1) as usize][row as usize] &= !(1 << m.0);
     }
 
-    fn push_random(&mut self) {
+    fn push_random(&mut self, rng: &mut fastrand::Rng) {
         let bb = self.board[0][0] | self.board[1][0];
         let bb = !bb & BITROW_MASK;
 
         let n_moves = bb.count_ones() as usize;
 
-        let choice = rand::thread_rng().gen_range(0..n_moves);
+        let choice = rng.usize(..n_moves);
 
         let mut bb = bb;
 
@@ -337,7 +335,7 @@ impl Display for MoveBuf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[")?;
         for m in &self.moves[..self.n_moves - 1] {
-            write!(f, "{}, ", m)?;
+            write!(f, "{m}, ")?;
         }
         write!(f, "{}]", self.moves[self.n_moves - 1])
     }

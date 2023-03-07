@@ -30,7 +30,7 @@ impl<G: Game> Agent<G> for Player<G> {
                     let mut user_input = String::new();
                     std::io::stdin().read_line(&mut user_input).unwrap();
                     let user_input = user_input.trim().to_uppercase();
-                    let needle = buffer.iter().find(|&&m| format!("{}", m) == user_input);
+                    let needle = buffer.iter().find(|&&m| format!("{m}") == user_input);
                     if let Some(needle) = needle {
                         break *needle;
                     }
@@ -67,7 +67,7 @@ impl<G: Game + Default> GameRunner<G> {
         let mut state = state;
         while !state.is_terminal() {
             if self.do_printout() {
-                println!("{}", state);
+                println!("{state}");
             }
             let player = match state.turn() {
                 1 => &mut self.players[0],
@@ -80,7 +80,7 @@ impl<G: Game + Default> GameRunner<G> {
             }
         }
         if self.do_printout() {
-            println!("{}", state);
+            println!("{state}");
             println!("{}", state.outcome().unwrap());
         }
     }
@@ -105,12 +105,12 @@ impl<G: Game + Default> GameRunner<G> {
         const GREEN: &str = "\u{001b}[32m";
         const RESET: &str = "\u{001b}[0m";
 
-        println!("Running a {}-game match...", games);
+        println!("Running a {games}-game match...");
         let mut results = [0; 3];
         let mut first_player_wins = 0;
         let mut second_player_wins = 0;
         for i in 0..games {
-            print!(" Game {}/{}    \r", i + 1, games);
+            print!(" Game {}/{games}    \r", i + 1);
             std::io::stdout().flush().unwrap();
             let players = &mut self.players;
             let result = Self::do_match(players, i);
@@ -126,7 +126,7 @@ impl<G: Game + Default> GameRunner<G> {
                 _ => (),
             }
         }
-        println!("{}", RESET);
+        println!("{RESET}");
         #[allow(clippy::cast_precision_loss)]
         let first_move_advantage =
             f64::from(results[1]).mul_add(0.5, f64::from(first_player_wins)) / games as f64;
@@ -135,8 +135,7 @@ impl<G: Game + Default> GameRunner<G> {
             results[0], results[1], results[2]
         );
         println!(
-            "going first resulted in {GREEN}{}{RESET} wins, {RED}{}{RESET} losses",
-            first_player_wins, second_player_wins
+            "going first resulted in {GREEN}{first_player_wins}{RESET} wins, {RED}{second_player_wins}{RESET} losses"
         );
         println!(
             "likelihood of winning by going first: {:.0}%",

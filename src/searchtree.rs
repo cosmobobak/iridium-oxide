@@ -98,7 +98,7 @@ impl<G: Game> SearchTree<G> {
         assert_eq!(buffer.len(), counts.len());
         write!(buf, "[")?;
         for (&m, &count) in buffer.iter().zip(counts.iter()) {
-            write!(buf, "{}: {:.0}% ", m, count * 100.0)?;
+            write!(buf, "{m}: {:.0}% ", count * 100.0)?;
         }
         write!(buf, "]")?;
         Ok(buf)
@@ -135,7 +135,7 @@ impl<G: Game> SearchTree<G> {
         movegen_board.generate_moves(&mut move_buffer);
         for m in move_buffer.iter() {
             if self.nodes.len() == self.capacity {
-                println!("{}", self);
+                println!("{self}");
                 panic!("SearchTree full, aborting...");
             }
             self.nodes

@@ -6,8 +6,6 @@ use std::{
     ops::Index,
 };
 
-use rand::Rng;
-
 use crate::game::{Game, MoveBuffer};
 
 // TODO: make a more compact representation of the board
@@ -158,7 +156,7 @@ impl<const N: usize> Display for Buffer<N> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "[")?;
         for m in &self.moves[..self.moves.len() - 1] {
-            write!(f, "{}, ", m)?;
+            write!(f, "{m}, ")?;
         }
         write!(f, "{}]", self.moves[self.moves.len() - 1])
     }
@@ -299,10 +297,10 @@ impl<const N: usize> Game for Gomoku<N> {
         }
     }
 
-    fn push_random(&mut self) {
+    fn push_random(&mut self, rng: &mut fastrand::Rng) {
         let mut moves = Buffer::new();
         self.generate_moves(&mut moves);
-        let index = rand::thread_rng().gen_range(0..moves.len());
+        let index = rng.usize(..moves.len());
         self.push(moves[index]);
     }
 }

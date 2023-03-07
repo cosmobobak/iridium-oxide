@@ -53,11 +53,10 @@ pub struct Behaviour {
 
 impl Default for Behaviour {
     fn default() -> Self {
-        use Limit::Rollouts;
         Self {
             debug: false,
             readout: true,
-            limit: Rollouts(100_000),
+            limit: Limit::Time(Duration::from_secs(600)),
             root_parallelism_count: 1,
             rollout_policy: RolloutPolicy::Random,
             exp_factor: DEFAULT_EXP_FACTOR,
@@ -105,6 +104,7 @@ struct SearchInfo {
 pub struct MCTS<G: Game> {
     search_info: SearchInfo,
     tree: SearchTree<G>,
+    rng: fastrand::Rng,
 }
 
 impl<G: Game> MCTS<G> {
@@ -118,6 +118,7 @@ impl<G: Game> MCTS<G> {
                 start_time: None,
             },
             tree: SearchTree::with_capacity(Self::NODEPOOL_SIZE),
+            rng: fastrand::Rng::new(),
         }
     }
 
@@ -136,7 +137,7 @@ impl<G: Game> MCTS<G> {
         self.search_info.start_time = Some(Instant::now());
 
         self.tree.setup(board.clone());
-        Self::do_treesearch(board, &self.search_info, &mut self.tree);
+        self.do_treesearch(board);
 
         let rollout_distribution = self.tree.root_rollout_distribution();
 
@@ -192,7 +193,7 @@ impl<G: Game> MCTS<G> {
                 self.search_info.start_time.unwrap().elapsed().as_millis(),
                 f64::from(rollouts) / self.search_info.start_time.unwrap().elapsed().as_secs_f64()
             );
-            let p1_wr = (win_rate * 100.0).max(0.0).min(100.0);
+            let p1_wr = (win_rate * 100.0).clamp(0.0, 100.0);
             println!(
                 "predicted outcome: {:.2}% chance of win.",
                 if self.search_info.side == -1 {
@@ -203,44 +204,43 @@ impl<G: Game> MCTS<G> {
             );
         }
         if self.search_info.flags.debug {
-            println!("{:?}", rollout_distribution);
-            println!("{:?}", new_node_idx);
+            println!("{rollout_distribution:?}");
+            println!("{new_node_idx:?}");
         }
 
         new_node
     }
 
-    fn do_treesearch(root: &G, search_info: &SearchInfo, tree: &mut SearchTree<G>) {
-        while !Self::limit_reached(search_info, tree.rollouts()) {
-            if search_info.flags.debug && tree.rollouts().is_power_of_two() {
-                print!("{}", tree.show_root_distribution(root).unwrap());
-                println!(" rollouts: {}", tree.rollouts());
+    fn do_treesearch(&mut self, root: &G) {
+        while !Self::limit_reached(&self.search_info, self.tree.rollouts()) {
+            if self.search_info.flags.debug && self.tree.rollouts().is_power_of_two() {
+                print!("{}", self.tree.show_root_distribution(root).unwrap());
+                println!(" rollouts: {}", self.tree.rollouts());
                 std::io::stdout().flush().unwrap();
             }
-            if search_info.flags.readout && tree.rollouts().is_power_of_two() {
+            if self.search_info.flags.readout && self.tree.rollouts().is_power_of_two() {
                 assert!(
-                    tree.average_depth() >= 0.0,
+                    self.tree.average_depth() >= 0.0,
                     "It's impossible to have searched any lines to a negative depth."
                 );
                 #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-                let avg_depth = tree.average_depth().round() as u64;
-                let q = if tree.root().to_move() == -1 {
-                    f64::from(tree.root().wins()) / f64::from(tree.rollouts())
+                let avg_depth = self.tree.average_depth().round() as u64;
+                let q = if self.tree.root().to_move() == -1 {
+                    f64::from(self.tree.root().wins()) / f64::from(self.tree.rollouts())
                 } else {
-                    1.0 - f64::from(tree.root().wins()) / f64::from(tree.rollouts())
+                    1.0 - f64::from(self.tree.root().wins()) / f64::from(self.tree.rollouts())
                 };
                 println!(
-                    "q: {:.3} eval: {:.3} depth: {}/{} pv: {}",
+                    "info depth {avg_depth} seldepth {} score wdl {:.3} nodes {} pv: {}",
+                    self.tree.pv_depth(),
                     q,
-                    tree.eval(),
-                    avg_depth,
-                    tree.pv_depth(),
-                    tree.pv_string()
+                    self.tree.rollouts(),
+                    self.tree.pv_string()
                 );
                 std::io::stdout().flush().unwrap();
             }
-            Self::select_expand_simulate_backpropagate(root, search_info, tree);
-            tree.inc_rollouts();
+            self.select_expand_simulate_backpropagate(root);
+            self.tree.inc_rollouts();
         }
     }
 
@@ -252,29 +252,28 @@ impl<G: Game> MCTS<G> {
     /// 3. Simulate the game from the expanded node.
     /// 4. Backpropagate the result of the simulation up the tree.
     fn select_expand_simulate_backpropagate(
+        &mut self,
         root: &G,
-        search_info: &SearchInfo,
-        tree: &mut SearchTree<G>,
     ) {
         // Each time we perform SESB, we have to walk a position down the tree, making moves as we go.
         let mut traversing_state = root.clone();
 
-        let promising_node_idx = Self::select(ROOT_IDX, tree, search_info, &mut traversing_state);
+        let promising_node_idx = Self::select(ROOT_IDX, &mut self.tree, &self.search_info, &mut traversing_state);
 
         if !traversing_state.is_terminal() {
-            tree.expand(promising_node_idx, &traversing_state);
+            self.tree.expand(promising_node_idx, &traversing_state);
         }
 
-        let promising_node = unsafe { tree.get_unchecked(promising_node_idx) }; // makes borrowchk happy
+        let promising_node = unsafe { self.tree.get_unchecked(promising_node_idx) }; // makes borrowchk happy
         let node_to_explore = if promising_node.has_children() {
             promising_node.random_child()
         } else {
             promising_node_idx
         };
 
-        let q = Self::simulate(search_info, node_to_explore, tree, &mut traversing_state);
+        let q = self.simulate(node_to_explore, &mut traversing_state);
 
-        Self::backprop(node_to_explore, q, tree);
+        Self::backprop(node_to_explore, q, &mut self.tree);
     }
 
     /// BACKPROPAGATE: Given a node and a Q-value, backpropagate the Q-value up the tree.
@@ -292,34 +291,33 @@ impl<G: Game> MCTS<G> {
 
     /// SIMULATE: Given a node, simulate the game from that node, and return the resulting Q-value.
     fn simulate(
-        search_info: &SearchInfo,
+        &mut self,
         node_idx: usize,
-        tree: &mut SearchTree<G>,
         rollout_board: &mut G,
     ) -> f32 {
         use RolloutPolicy::{
             Decisive, DecisiveCutoff, DecisiveQualityScaled, MetaAggregated, Random, RandomCutoff,
             RandomQualityScaled,
         };
-        let node = &tree[node_idx];
+        let node = &self.tree[node_idx];
 
         // test for immediate loss
         let status = rollout_board.evaluate();
-        if status == -search_info.side {
+        if status == -self.search_info.side {
             let parent_idx = node
                 .parent()
                 .expect("PANICKING: Immediate loss found in root node.");
-            tree[parent_idx].set_win_score(N_INF as f32);
+            self.tree[parent_idx].set_win_score(N_INF as f32);
             return f32::from(status);
         }
 
         // playout
-        match &search_info.flags.rollout_policy {
-            Random => Self::random_rollout(rollout_board),
-            Decisive => Self::decisive_rollout(rollout_board),
-            RandomQualityScaled => Self::random_rollout_qs(rollout_board),
-            DecisiveQualityScaled => Self::decisive_rollout_qs(rollout_board),
-            RandomCutoff { moves } => Self::random_rollout_cutoff(rollout_board, *moves),
+        match &self.search_info.flags.rollout_policy {
+            Random => self.random_rollout(rollout_board),
+            Decisive => self.decisive_rollout(rollout_board),
+            RandomQualityScaled => self.random_rollout_qs(rollout_board),
+            DecisiveQualityScaled => self.decisive_rollout_qs(rollout_board),
+            RandomCutoff { moves } => self.random_rollout_cutoff(rollout_board, *moves),
             DecisiveCutoff { moves } => Self::decisive_rollout_cutoff(rollout_board, *moves),
             MetaAggregated { policy, rollouts } => {
                 let rollouts = *rollouts;
@@ -341,7 +339,7 @@ impl<G: Game> MCTS<G> {
                 let mut sum = 0.0;
                 for _ in 0..rollouts {
                     let mut roller = rollout_board.clone();
-                    sum += f(&mut roller);
+                    sum += f(self, &mut roller);
                 }
                 sum / (rollouts as f32)
             }
@@ -375,10 +373,9 @@ impl<G: Game> MCTS<G> {
     /// The random rollout policy.
     /// Simply plays random moves until the game ends,
     /// then returns the result as 1.0 / 0.0 / -1.0.
-    #[inline]
-    fn random_rollout(playout_board: &mut G) -> f32 {
+    fn random_rollout(&mut self, playout_board: &mut G) -> f32 {
         while !playout_board.is_terminal() {
-            playout_board.push_random();
+            playout_board.push_random(&mut self.rng);
         }
         f32::from(playout_board.evaluate())
     }
@@ -386,17 +383,15 @@ impl<G: Game> MCTS<G> {
     /// A scaling function that allows for rollout results to be weighted by the quality of the
     /// rollout, where rollouts that end more quickly are considered better, as they should be
     /// more representative of the quality of the position they arose from.
-    #[inline]
     fn scale(q: f32, moves: f32) -> f32 {
         q * (-0.04 * moves).exp()
     }
 
     /// A quality-scaled version of [`random_rollout`](Self::random_rollout).
-    #[inline]
-    fn random_rollout_qs(playout_board: &mut G) -> f32 {
+    fn random_rollout_qs(&mut self, playout_board: &mut G) -> f32 {
         let mut moves = 1;
         while !playout_board.is_terminal() {
-            playout_board.push_random();
+            playout_board.push_random(&mut self.rng);
             moves += 1;
         }
         let q = f32::from(playout_board.evaluate());
@@ -406,8 +401,7 @@ impl<G: Game> MCTS<G> {
     /// The decisive rollout policy.
     /// In each position, if there is a move that wins on the spot, we play that move.
     /// Otherwise, we play a random move.
-    #[inline]
-    fn decisive_rollout(playout_board: &mut G) -> f32 {
+    fn decisive_rollout(&mut self, playout_board: &mut G) -> f32 {
         while !playout_board.is_terminal() {
             let mut buffer = G::Buffer::default();
             playout_board.generate_moves(&mut buffer);
@@ -419,16 +413,14 @@ impl<G: Game> MCTS<G> {
                     return f32::from(evaluation);
                 }
             }
-            let mut rng = rand::thread_rng();
-            let idx = rng.gen_range(0..buffer.len());
+            let idx = self.rng.usize(..buffer.len());
             playout_board.push(buffer[idx]);
         }
         f32::from(playout_board.evaluate())
     }
 
     /// A quality-scaled version of [`decisive_rollout`](Self::decisive_rollout).
-    #[inline]
-    fn decisive_rollout_qs(playout_board: &mut G) -> f32 {
+    fn decisive_rollout_qs(&mut self, playout_board: &mut G) -> f32 {
         let mut moves = 1;
         while !playout_board.is_terminal() {
             let mut buffer = G::Buffer::default();
@@ -441,8 +433,7 @@ impl<G: Game> MCTS<G> {
                     return f32::from(evaluation) / (moves as f32 + 10.0) * 10.0;
                 }
             }
-            let mut rng = rand::thread_rng();
-            let idx = rng.gen_range(0..buffer.len());
+            let idx = self.rng.usize(..buffer.len());
             playout_board.push(buffer[idx]);
             moves += 1;
         }
@@ -453,14 +444,13 @@ impl<G: Game> MCTS<G> {
     /// A cutoff version of [`random_rollout`](Self::random_rollout).
     /// This policy will stop rollouts after a fixed number of moves,
     /// returning a Q-value of 0.0.
-    #[inline]
-    fn random_rollout_cutoff(playout_board: &mut G, moves: usize) -> f32 {
+    fn random_rollout_cutoff(&mut self, playout_board: &mut G, moves: usize) -> f32 {
         let mut counter = 1;
         while !playout_board.is_terminal() {
             if counter > moves {
                 return 0.0;
             }
-            playout_board.push_random();
+            playout_board.push_random(&mut self.rng);
             counter += 1;
         }
         f32::from(playout_board.evaluate())
@@ -469,7 +459,6 @@ impl<G: Game> MCTS<G> {
     /// A cutoff version of [`decisive_rollout`](Self::decisive_rollout).
     /// This policy will stop rollouts after a fixed number of moves,
     /// returning a Q-value of 0.0.
-    #[inline]
     fn decisive_rollout_cutoff(playout_board: &mut G, moves: usize) -> f32 {
         let mut counter = 1;
         while !playout_board.is_terminal() {

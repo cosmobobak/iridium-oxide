@@ -7,8 +7,8 @@ use crate::game::{Game, MoveBuffer};
 
 const BOARD_WIDTH: usize = 9;
 const BOARD_HEIGHT: usize = 9;
-const SUB_BOARD_WIDTH: usize = 3;
-const SUB_BOARD_HEIGHT: usize = 3;
+// const SUB_BOARD_WIDTH: usize = 3;
+// const SUB_BOARD_HEIGHT: usize = 3;
 
 const NO_PIECE: u8 = 0;
 const X: u8 = 1;
@@ -32,7 +32,7 @@ impl Display for Move {
         }
         let row = self.0 / BOARD_WIDTH as u8;
         let col = self.0 % BOARD_WIDTH as u8;
-        write!(f, "{}{}", (b'A' + row as u8) as char, col + 1)
+        write!(f, "{}{}", (b'A' + row) as char, col + 1)
     }
 }
 
@@ -79,7 +79,7 @@ impl Display for UltimateTicTacToe {
                     O => 'O',
                     _ => unreachable!(),
                 };
-                write!(f, "{} ", piece_char)?;
+                write!(f, "{piece_char} ")?;
             }
             writeln!(f)?;
         }
@@ -97,7 +97,7 @@ impl Display for Buffer {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "[")?;
         for m in &self.moves[..self.moves.len() - 1] {
-            write!(f, "{}, ", m)?;
+            write!(f, "{m}, ")?;
         }
         write!(f, "{}]", self.moves[self.moves.len() - 1])
     }
@@ -152,7 +152,7 @@ impl Game for UltimateTicTacToe {
         todo!()
     }
 
-    fn generate_moves(&self, moves: &mut Self::Buffer) {
+    fn generate_moves(&self, _moves: &mut Self::Buffer) {
         todo!()
     }
 
@@ -164,15 +164,15 @@ impl Game for UltimateTicTacToe {
         todo!()
     }
 
-    fn push(&mut self, m: Self::Move) {
+    fn push(&mut self, _m: Self::Move) {
         todo!()
     }
 
-    fn pop(&mut self, m: Self::Move) {
+    fn pop(&mut self, _m: Self::Move) {
         todo!()
     }
 
-    fn push_random(&mut self) {
+    fn push_random(&mut self, _rng: &mut fastrand::Rng) {
         todo!()
     }
 }
