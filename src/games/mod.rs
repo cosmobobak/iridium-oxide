@@ -3,3 +3,4 @@ pub mod gomoku;
 pub mod reversi;
 pub mod tictactoe;
 pub mod ultimatetictactoe;
+pub mod chess;

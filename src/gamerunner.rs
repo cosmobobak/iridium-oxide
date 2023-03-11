@@ -22,15 +22,16 @@ impl<G: Game> Agent<G> for Player<G> {
             Self::Human => {
                 let mut buffer = G::Buffer::default();
                 state.generate_moves(&mut buffer);
-                // println!("Your options are:");
-                // println!("{}", buffer);
+                println!("Your options are:");
+                println!("{buffer}");
                 let user_move = loop {
                     print!("Enter move: ");
                     std::io::stdout().flush().unwrap();
                     let mut user_input = String::new();
                     std::io::stdin().read_line(&mut user_input).unwrap();
                     let user_input = user_input.trim().to_uppercase();
-                    let needle = buffer.iter().find(|&&m| format!("{m}") == user_input);
+                    let needle = buffer.iter()
+                        .find(|&&m| format!("{m}").to_uppercase() == user_input);
                     if let Some(needle) = needle {
                         break *needle;
                     }

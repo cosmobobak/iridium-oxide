@@ -24,9 +24,11 @@ mod ucb;
 use datageneration::VectoriseState;
 use game::Game;
 use Player::{Computer, Human};
+use games::chess::Chess;
 
 const NAME: &str = "iridium-oxide";
 
+#[allow(clippy::too_many_lines)]
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
@@ -69,18 +71,25 @@ fn main() {
                         .parse()
                         .unwrap(),
                 ),
+                Some("chess") => play::<Chess>(
+                    &Behaviour::default(),
+                    args.get(3)
+                        .unwrap_or_else(|| panic!("No side provided."))
+                        .parse()
+                        .unwrap(),
+                ),
                 Some("reversi" | "uttt") => todo!(),
                 Some(unknown) => {
                     if unknown != "help" {
                         eprintln!("Unknown game: {unknown}");
                     }
                     println!(
-                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt"
+                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt, chess"
                     );
                 }
                 None => {
                     println!(
-                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt"
+                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt, chess"
                     );
                 }
             }
@@ -101,13 +110,13 @@ fn main() {
                         eprintln!("Unknown game: {unknown}");
                     }
                     println!(
-                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt"
+                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt, chess"
                     );
                     return;
                 }
                 None => {
                     println!(
-                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt"
+                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt, chess"
                     );
                     return;
                 }

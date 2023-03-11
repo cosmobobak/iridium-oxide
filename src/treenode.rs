@@ -8,9 +8,9 @@ use crate::game::Game;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node<G: Game> {
-    first_child: usize,    // 8 bytes.
-    n_children: u16,       // 2 bytes.
-    parent: Option<usize>, // 9 bytes.
+    first_child: u32,    // 4 bytes.
+    n_children: u16,     // 2 bytes.
+    parent: Option<u32>, // 5 bytes.
 
     value: f32,      // 4 bytes.
     visits: u32,     // 4 bytes.
@@ -20,7 +20,7 @@ pub struct Node<G: Game> {
 }
 
 impl<G: Game> Node<G> {
-    pub const fn new(turn: i8, parent: Option<usize>, inbound_edge: G::Move) -> Self {
+    pub fn new(turn: i8, parent: Option<usize>, inbound_edge: G::Move) -> Self {
         // perspective is set to -turn because what matters is
         // whether a player wants to "enter" a node, and so if
         // the turn is 1, then the perspective is -1, because
@@ -29,7 +29,7 @@ impl<G: Game> Node<G> {
         Self {
             first_child: 0,
             n_children: 0,
-            parent,
+            parent: parent.map(|p| p.try_into().unwrap()),
             value: 0.0,
             visits: 0,
             perspective,
@@ -38,11 +38,11 @@ impl<G: Game> Node<G> {
     }
 
     pub const fn children(&self) -> Range<usize> {
-        self.first_child..self.first_child + self.n_children as usize
+        self.first_child as usize..self.first_child as usize + self.n_children as usize
     }
 
-    pub const fn parent(&self) -> Option<usize> {
-        self.parent
+    pub fn parent(&self) -> Option<usize> {
+        self.parent.map(|p| p as usize)
     }
 
     pub const fn to_move(&self) -> i8 {
@@ -90,7 +90,7 @@ impl<G: Game> Node<G> {
     }
 
     pub fn add_children(&mut self, start: usize, count: usize) {
-        self.first_child = start;
+        self.first_child = start.try_into().unwrap();
         self.n_children = count
             .try_into()
             .unwrap_or_else(|_| panic!("cannot handle more than {} children at once.", u16::MAX));

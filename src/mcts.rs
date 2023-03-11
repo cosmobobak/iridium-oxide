@@ -56,9 +56,9 @@ impl Default for Behaviour {
         Self {
             debug: false,
             readout: true,
-            limit: Limit::Time(Duration::from_secs(600)),
+            limit: Limit::Time(Duration::from_millis(180_000)),
             root_parallelism_count: 1,
-            rollout_policy: RolloutPolicy::Random,
+            rollout_policy: RolloutPolicy::DecisiveCutoff { moves: 50 },
             exp_factor: DEFAULT_EXP_FACTOR,
             training: false,
         }
@@ -105,6 +105,12 @@ pub struct MCTS<G: Game> {
     search_info: SearchInfo,
     tree: SearchTree<G>,
     rng: fastrand::Rng,
+}
+
+pub trait MCTSExt<G: Game> {
+    fn rollout_cutoff_length() -> usize {
+        100_000
+    }
 }
 
 impl<G: Game> MCTS<G> {
@@ -230,8 +236,8 @@ impl<G: Game> MCTS<G> {
                 } else {
                     1.0 - f64::from(self.tree.root().wins()) / f64::from(self.tree.rollouts())
                 };
-                println!(
-                    "info depth {avg_depth} seldepth {} score wdl {:.3} nodes {} pv: {}",
+                print!(
+                    "info depth {avg_depth} seldepth {} score wdl {:.3} nodes {} pv: {}\r",
                     self.tree.pv_depth(),
                     q,
                     self.tree.rollouts(),
@@ -241,6 +247,9 @@ impl<G: Game> MCTS<G> {
             }
             self.select_expand_simulate_backpropagate(root);
             self.tree.inc_rollouts();
+        }
+        if self.search_info.flags.readout {
+            println!();
         }
     }
 

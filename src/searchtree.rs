@@ -186,6 +186,7 @@ impl<G: Game> SearchTree<G> {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn get(&self, idx: usize) -> Option<&Node<G>> {
         self.nodes.get(idx)
     }
@@ -244,6 +245,7 @@ impl<G: Game> SearchTree<G> {
         self.average_depth_of(ROOT_IDX)
     }
 
+    #[allow(dead_code)]
     pub fn eval(&self) -> f64 {
         let root = self.get(ROOT_IDX).expect("Root node does not exist");
         let q = root.wins();
