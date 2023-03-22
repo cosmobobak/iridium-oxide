@@ -5,7 +5,7 @@ use rand::Rng;
 use std::{
     fmt::Display,
     io::Write,
-    time::{Duration, Instant},
+    time::{Duration, Instant}, sync::{mpsc, Mutex},
 };
 
 use crate::{
@@ -89,11 +89,47 @@ pub struct SearchResults<G: Game> {
 }
 
 /// Information for the MCTS search, including both static config and particular search state.
-#[derive(Clone, Debug, PartialEq)]
-struct SearchInfo {
+#[derive(Clone, Debug)]
+pub struct SearchInfo<'a> {
     pub flags: Behaviour,
     pub side: i8,
     pub start_time: Option<Instant>,
+    /// A handle to a receiver for stdin.
+    pub stdin_rx: Option<&'a Mutex<mpsc::Receiver<String>>>,
+}
+
+impl<'a> SearchInfo<'a> {
+    pub fn new(stdin_rx: &'a Mutex<mpsc::Receiver<String>>) -> Self {
+        Self {
+            flags: Behaviour::default(),
+            side: 1,
+            start_time: None,
+            stdin_rx: Some(stdin_rx),
+        }
+    }
+    /// Returns true if the search should be terminated.
+    fn limit_reached(&self, rollouts: u32) -> bool {
+        match self.flags.limit {
+            Limit::Time(max_duration) => {
+                let now = Instant::now();
+                let elapsed = now.checked_duration_since(self.start_time.unwrap()).unwrap_or_default();
+                elapsed >= max_duration
+            }
+            Limit::Rollouts(max_rollouts) => rollouts >= max_rollouts,
+        }
+    }
+    /// Check if we've run out of time or received a signal from stdin.
+    fn check_up(&self) -> bool {
+        if let Some(rx) = self.stdin_rx {
+            let rx = rx.lock().unwrap();
+            if let Ok(msg) = rx.try_recv() {
+                if msg == "stop" {
+                    return true;
+                }
+            }
+        }
+        self.limit_reached(0)
+    }
 }
 
 /// The MCTS search engine.
@@ -101,8 +137,8 @@ struct SearchInfo {
 /// There may be multiple trees if the search is parallelised.
 #[derive(Clone)]
 #[allow(clippy::upper_case_acronyms)]
-pub struct MCTS<G: Game> {
-    search_info: SearchInfo,
+pub struct MCTS<'a, G: Game> {
+    search_info: SearchInfo<'a>,
     tree: SearchTree<G>,
     rng: fastrand::Rng,
 }
@@ -113,7 +149,7 @@ pub trait MCTSExt<G: Game> {
     }
 }
 
-impl<G: Game> MCTS<G> {
+impl<'a, G: Game> MCTS<'a, G> {
     const NODEPOOL_SIZE: usize = MAX_NODEPOOL_MEM / std::mem::size_of::<Node<G>>();
 
     pub fn new(flags: &Behaviour) -> Self {
@@ -122,6 +158,7 @@ impl<G: Game> MCTS<G> {
                 flags: flags.clone(),
                 side: 1,
                 start_time: None,
+                stdin_rx: None,
             },
             tree: SearchTree::with_capacity(Self::NODEPOOL_SIZE),
             rng: fastrand::Rng::new(),
@@ -129,14 +166,7 @@ impl<G: Game> MCTS<G> {
     }
 
     fn limit_reached(search_info: &SearchInfo, rollouts: u32) -> bool {
-        match search_info.flags.limit {
-            Limit::Time(max_duration) => {
-                let now = Instant::now();
-                let elapsed = now.duration_since(search_info.start_time.unwrap());
-                elapsed >= max_duration
-            }
-            Limit::Rollouts(max_rollouts) => rollouts >= max_rollouts,
-        }
+        search_info.limit_reached(rollouts)
     }
 
     pub fn search(&mut self, board: &G) -> SearchResults<G> {
