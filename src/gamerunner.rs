@@ -10,12 +10,12 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub enum Player<G: Game> {
+pub enum Player<'a, G: Game> {
     Human,
-    Computer(MCTS<G>),
+    Computer(MCTS<'a, G>),
 }
 
-impl<G: Game + MCTSExt> Agent<G> for Player<G> {
+impl<G: Game + MCTSExt> Agent<G> for Player<'_, G> {
     fn transition(&mut self, state: G) -> G {
         let mut state = state;
         match self {
@@ -30,7 +30,8 @@ impl<G: Game + MCTSExt> Agent<G> for Player<G> {
                     let mut user_input = String::new();
                     std::io::stdin().read_line(&mut user_input).unwrap();
                     let user_input = user_input.trim().to_uppercase();
-                    let needle = buffer.iter()
+                    let needle = buffer
+                        .iter()
                         .find(|&&m| format!("{m}").to_uppercase() == user_input);
                     if let Some(needle) = needle {
                         break *needle;
@@ -45,12 +46,16 @@ impl<G: Game + MCTSExt> Agent<G> for Player<G> {
     }
 }
 
-pub struct GameRunner<G: Game> {
-    players: [Player<G>; 2],
+pub struct GameRunner<'a, G: Game> {
+    players: [Player<'a, G>; 2],
 }
 
-impl<G: Game + Default + MCTSExt> GameRunner<G> {
-    pub const fn new(player1: Player<G>, player2: Player<G>) -> Self {
+impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
+    pub const fn new<'b, 'c>(player1: Player<'b, G>, player2: Player<'c, G>) -> Self
+    where
+        'b: 'a,
+        'c: 'a,
+    {
         Self {
             players: [player1, player2],
         }

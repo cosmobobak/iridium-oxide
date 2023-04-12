@@ -116,7 +116,7 @@ impl GameData {
     }
 }
 
-impl<G: VectoriseState + mcts::MCTSExt> GameRunner<G> {
+impl<'a, G: VectoriseState + mcts::MCTSExt> GameRunner<'a, G> {
     pub fn play_training_game(flags: &Behaviour) -> GameData {
         let mut state = G::default();
         let mut states = Vec::new();
