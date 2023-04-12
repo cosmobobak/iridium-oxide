@@ -6,7 +6,7 @@ use crate::{
     agent::Agent,
     elo,
     game::{Game, MoveBuffer},
-    mcts::{MCTS, MCTSExt},
+    mcts::{MCTSExt, MCTS},
 };
 
 #[derive(Clone)]
@@ -91,9 +91,9 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
         }
     }
 
-    fn do_match(players: &mut [Player<G>; 2], game_count: usize) -> i8 {
+    fn do_encounter(players: &mut [Player<G>; 2], flip: bool) -> i8 {
         let mut state = G::default();
-        let alternator = if game_count % 2 == 0 { 1 } else { -1 };
+        let alternator = if flip { 1 } else { -1 };
         while !state.is_terminal() {
             let turn = state.turn() * alternator;
             let player = match turn {
@@ -112,40 +112,56 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
         const RESET: &str = "\u{001b}[0m";
 
         println!("Running a {games}-game match...");
-        let mut results = [0; 3];
+        assert_eq!(games % 2, 0, "Number of games must be even");
+        let mut results_1 = [0; 3];
         let mut first_player_wins = 0;
         let mut second_player_wins = 0;
-        for i in 0..games {
+        for i in 0..games / 2 {
             print!(" Game {}/{games}    \r", i + 1);
             std::io::stdout().flush().unwrap();
-            let players = &mut self.players;
-            let result = Self::do_match(players, i);
+            let result = Self::do_encounter(&mut self.players, false);
             match result {
-                1 => results[0] += 1,
-                0 => results[1] += 1,
-                -1 => results[2] += 1,
+                1 => results_1[0] += 1,
+                0 => results_1[1] += 1,
+                -1 => results_1[2] += 1,
                 _ => panic!("Invalid result"),
             }
-            match result * if i % 2 == 0 { 1 } else { -1 } {
+            match result {
                 1 => first_player_wins += 1,
                 -1 => second_player_wins += 1,
                 _ => (),
             }
         }
+        let mut results_2 = [0; 3];
+        for i in games / 2..games {
+            print!(" Game {}/{games}    \r", i + 1);
+            std::io::stdout().flush().unwrap();
+            let result = Self::do_encounter(&mut self.players, true);
+            match result {
+                1 => results_2[0] += 1,
+                0 => results_2[1] += 1,
+                -1 => results_2[2] += 1,
+                _ => panic!("Invalid result"),
+            }
+            match result {
+                1 => first_player_wins += 1,
+                -1 => second_player_wins += 1,
+                _ => (),
+            }
+        }
+        println!(" Game {games}/{games}    ");
+        let results = [
+            results_1[0] + results_2[2],
+            results_1[1] + results_2[1],
+            results_1[2] + results_2[0],
+        ];
         println!("{RESET}");
-        #[allow(clippy::cast_precision_loss)]
-        let first_move_advantage =
-            f64::from(results[1]).mul_add(0.5, f64::from(first_player_wins)) / games as f64;
         println!(
             "wins: {GREEN}{}{RESET}, draws: {}, losses: {RED}{}{RESET}",
             results[0], results[1], results[2]
         );
         println!(
             "going first resulted in {GREEN}{first_player_wins}{RESET} wins, {RED}{second_player_wins}{RESET} losses"
-        );
-        println!(
-            "likelihood of winning by going first: {:.0}%",
-            first_move_advantage * 100.0
         );
         let elo = elo::difference(results[0], results[2], results[1]);
         let control = if elo.difference > 0.0 { GREEN } else { RED };

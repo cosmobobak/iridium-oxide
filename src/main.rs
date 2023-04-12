@@ -23,9 +23,9 @@ mod ucb;
 
 use datageneration::VectoriseState;
 use game::Game;
-use Player::{Computer, Human};
 use games::chess::Chess;
 use mcts::MCTSExt;
+use Player::{Computer, Human};
 
 const NAME: &str = "iridium-oxide";
 
@@ -36,49 +36,14 @@ fn main() {
     match args.get(1).map(String::as_str) {
         Some("play") => {
             let game = args.get(2);
+            let player = args.get(3).map(String::as_str);
             match game.map(String::as_str) {
-                Some("connect4") => play::<Connect4>(
-                    &Behaviour::for_game::<Connect4>(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
-                Some("tictactoe") => play::<TicTacToe>(
-                    &Behaviour::for_game::<TicTacToe>(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
-                Some("gomoku9") => play::<Gomoku<9>>(
-                    &Behaviour::for_game::<Gomoku<9>>(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
-                Some("gomoku13") => play::<Gomoku<13>>(
-                    &Behaviour::for_game::<Gomoku<13>>(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
-                Some("gomoku19") => play::<Gomoku<19>>(
-                    &Behaviour::for_game::<Gomoku<19>>(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
-                Some("chess") => play::<Chess>(
-                    &Behaviour::for_game::<Chess>(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
+                Some("connect4") => play::<Connect4>(player),
+                Some("tictactoe") => play::<TicTacToe>(player),
+                Some("gomoku9") => play::<Gomoku<9>>(player),
+                Some("gomoku13") => play::<Gomoku<13>>(player),
+                Some("gomoku19") => play::<Gomoku<19>>(player),
+                Some("chess") => play::<Chess>(player),
                 Some("reversi" | "uttt") => todo!(),
                 Some(unknown) => {
                     if unknown != "help" {
@@ -141,8 +106,13 @@ fn main() {
     }
 }
 
-fn play<G: Game + MCTSExt>(config: &Behaviour, player: usize) {
+fn play<G: Game + MCTSExt>(player: Option<&str>) {
     println!("iridium-oxide operating at full capacity!");
+    let config = &Behaviour::for_game::<G>();
+    let player = player
+        .unwrap_or_else(|| panic!("No side provided."))
+        .parse()
+        .unwrap();
     match player {
         1 => GameRunner::<G>::new(Human, Computer(MCTS::new(config))).run(),
         2 => GameRunner::<G>::new(Computer(MCTS::new(config)), Human).run(),
