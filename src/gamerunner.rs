@@ -6,7 +6,7 @@ use crate::{
     agent::Agent,
     elo,
     game::{Game, MoveBuffer},
-    mcts::MCTS,
+    mcts::{MCTS, MCTSExt},
 };
 
 #[derive(Clone)]
@@ -15,7 +15,7 @@ pub enum Player<G: Game> {
     Computer(MCTS<G>),
 }
 
-impl<G: Game> Agent<G> for Player<G> {
+impl<G: Game + MCTSExt> Agent<G> for Player<G> {
     fn transition(&mut self, state: G) -> G {
         let mut state = state;
         match self {
@@ -49,7 +49,7 @@ pub struct GameRunner<G: Game> {
     players: [Player<G>; 2],
 }
 
-impl<G: Game + Default> GameRunner<G> {
+impl<G: Game + Default + MCTSExt> GameRunner<G> {
     pub const fn new(player1: Player<G>, player2: Player<G>) -> Self {
         Self {
             players: [player1, player2],

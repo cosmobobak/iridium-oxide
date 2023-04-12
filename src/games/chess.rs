@@ -1,18 +1,16 @@
 use std::{fmt::Display, ops::Index};
 
-use crate::game::{Game, MoveBuffer};
+use crate::{game::{Game, MoveBuffer}, mcts::{MCTSExt, self}};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Chess {
     inner: cozy_chess::Board,
-    stack: Vec<cozy_chess::Board>,
 }
 
 impl Default for Chess {
     fn default() -> Self {
         Self {
             inner: cozy_chess::Board::startpos(),
-            stack: Vec::new(),
         }
     }
 }
@@ -157,12 +155,7 @@ impl Game for Chess {
     }
 
     fn push(&mut self, m: Self::Move) {
-        self.stack.push(self.inner.clone());
         self.inner.play(m.0);
-    }
-
-    fn pop(&mut self, _m: Self::Move) {
-        self.inner = self.stack.pop().unwrap();
     }
 
     fn push_random(&mut self, rng: &mut fastrand::Rng) {
@@ -172,5 +165,11 @@ impl Game for Chess {
             false
         });
         self.inner.play(moves[rng.usize(..moves.len())]);
+    }
+}
+
+impl MCTSExt for Chess {
+    fn rollout_policy() -> mcts::RolloutPolicy {
+        mcts::RolloutPolicy::DecisiveCutoff { moves: 50 }
     }
 }

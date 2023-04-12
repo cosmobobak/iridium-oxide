@@ -3,7 +3,7 @@ use std::{
     ops::Index,
 };
 
-use crate::game::{Game, MoveBuffer};
+use crate::{game::{Game, MoveBuffer}, mcts::MCTSExt};
 
 const BOARD_WIDTH: usize = 9;
 const BOARD_HEIGHT: usize = 9;
@@ -168,11 +168,10 @@ impl Game for UltimateTicTacToe {
         todo!()
     }
 
-    fn pop(&mut self, _m: Self::Move) {
-        todo!()
-    }
-
     fn push_random(&mut self, _rng: &mut fastrand::Rng) {
         todo!()
     }
+}
+
+impl MCTSExt for UltimateTicTacToe {
 }

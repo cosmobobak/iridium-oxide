@@ -79,6 +79,15 @@ impl Display for Behaviour {
     }
 }
 
+impl Behaviour {
+    pub fn for_game<G: Game + MCTSExt>() -> Self {
+        Self {
+            rollout_policy: G::rollout_policy(),
+            ..Self::default()
+        }
+    }
+}
+
 /// A struct containing the results of an MCTS search.
 pub struct SearchResults<G: Game> {
     pub rollout_distribution: Vec<u32>,
@@ -107,13 +116,16 @@ pub struct MCTS<G: Game> {
     rng: fastrand::Rng,
 }
 
-pub trait MCTSExt<G: Game> {
+pub trait MCTSExt: Game {
     fn rollout_cutoff_length() -> usize {
         100_000
     }
+    fn rollout_policy() -> RolloutPolicy {
+        RolloutPolicy::Random
+    }
 }
 
-impl<G: Game> MCTS<G> {
+impl<G: Game + MCTSExt> MCTS<G> {
     const NODEPOOL_SIZE: usize = MAX_NODEPOOL_MEM / std::mem::size_of::<Node<G>>();
 
     pub fn new(flags: &Behaviour) -> Self {
@@ -415,9 +427,9 @@ impl<G: Game> MCTS<G> {
             let mut buffer = G::Buffer::default();
             playout_board.generate_moves(&mut buffer);
             for &m in buffer.iter() {
-                playout_board.push(m);
+                let mut board_copy = playout_board.clone();
+                board_copy.push(m);
                 let evaluation = playout_board.evaluate();
-                playout_board.pop(m);
                 if evaluation != 0 {
                     return f32::from(evaluation);
                 }
@@ -435,9 +447,9 @@ impl<G: Game> MCTS<G> {
             let mut buffer = G::Buffer::default();
             playout_board.generate_moves(&mut buffer);
             for &m in buffer.iter() {
-                playout_board.push(m);
+                let mut board_copy = playout_board.clone();
+                board_copy.push(m);
                 let evaluation = playout_board.evaluate();
-                playout_board.pop(m);
                 if evaluation != 0 {
                     return f32::from(evaluation) / (moves as f32 + 10.0) * 10.0;
                 }
@@ -477,9 +489,9 @@ impl<G: Game> MCTS<G> {
             let mut buffer = G::Buffer::default();
             playout_board.generate_moves(&mut buffer);
             for &m in buffer.iter() {
-                playout_board.push(m);
+                let mut board_copy = playout_board.clone();
+                board_copy.push(m);
                 let evaluation = playout_board.evaluate();
-                playout_board.pop(m);
                 if evaluation != 0 {
                     return f32::from(evaluation);
                 }

@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     datageneration::{StateVector, VectoriseState},
-    game::{Game, MoveBuffer},
+    game::{Game, MoveBuffer}, mcts::MCTSExt,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -199,11 +199,6 @@ impl Game for TicTacToe {
         self.moves += 1;
     }
 
-    fn pop(&mut self, m: Self::Move) {
-        self.moves -= 1;
-        self.board[self.moves & 1] ^= 1 << m.0;
-    }
-
     fn push_random(&mut self, rng: &mut fastrand::Rng) {
         let bb = self.board[0] | self.board[1];
         let mut bb = !bb & 0b111_111_111;
@@ -272,6 +267,8 @@ impl Default for TicTacToe {
         Self::new()
     }
 }
+
+impl MCTSExt for TicTacToe {}
 
 // #[cfg(test)]
 // mod tests {

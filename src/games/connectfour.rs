@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     datageneration::{StateVector, VectoriseState},
-    game::{Game, MoveBuffer},
+    game::{Game, MoveBuffer}, mcts::MCTSExt,
 };
 
 type Bitrow = u8;
@@ -219,19 +219,19 @@ impl Game for Connect4 {
         self.moves += 1;
     }
 
-    fn pop(&mut self, m: Self::Move) {
-        assert!(self.filled(ROWS, m.0));
+    // fn pop(&mut self, m: Self::Move) {
+    //     assert!(self.filled(ROWS, m.0));
 
-        self.moves -= 1;
+    //     self.moves -= 1;
 
-        let mut row = 0;
-        while !self.filled(row, m.0) {
-            row += 1;
-        }
+    //     let mut row = 0;
+    //     while !self.filled(row, m.0) {
+    //         row += 1;
+    //     }
 
-        assert!(row < ROWS);
-        self.board[(self.moves & 1) as usize][row as usize] &= !(1 << m.0);
-    }
+    //     assert!(row < ROWS);
+    //     self.board[(self.moves & 1) as usize][row as usize] &= !(1 << m.0);
+    // }
 
     fn push_random(&mut self, rng: &mut fastrand::Rng) {
         let bb = self.board[0][0] | self.board[1][0];
@@ -340,3 +340,5 @@ impl Display for MoveBuf {
         write!(f, "{}]", self.moves[self.n_moves - 1])
     }
 }
+
+impl MCTSExt for Connect4 {}

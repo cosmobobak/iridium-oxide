@@ -6,7 +6,7 @@ use std::{
     ops::Index,
 };
 
-use crate::game::{Game, MoveBuffer};
+use crate::{game::{Game, MoveBuffer}, mcts::MCTSExt};
 
 // TODO: make a more compact representation of the board
 
@@ -263,11 +263,6 @@ impl<const N: usize> Game for Gomoku<N> {
         self.last_move = m;
     }
 
-    fn pop(&mut self, m: Self::Move) {
-        self.board[m.row()][m.col()] = EMPTY;
-        self.moves -= 1;
-    }
-
     fn evaluate(&self) -> i8 {
         let last_played = self.last_move;
         let row = last_played.row();
@@ -304,3 +299,5 @@ impl<const N: usize> Game for Gomoku<N> {
         self.push(moves[index]);
     }
 }
+
+impl<const N: usize> MCTSExt for Gomoku<N> {}
