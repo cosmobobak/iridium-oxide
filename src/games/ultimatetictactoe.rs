@@ -3,7 +3,10 @@ use std::{
     ops::Index,
 };
 
-use crate::{game::{Game, MoveBuffer}, mcts::MCTSExt};
+use crate::{
+    game::{Game, MoveBuffer},
+    mcts::MCTSExt,
+};
 
 const BOARD_WIDTH: usize = 9;
 const BOARD_HEIGHT: usize = 9;
@@ -173,5 +176,4 @@ impl Game for UltimateTicTacToe {
     }
 }
 
-impl MCTSExt for UltimateTicTacToe {
-}
+impl MCTSExt for UltimateTicTacToe {}

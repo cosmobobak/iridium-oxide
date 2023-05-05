@@ -123,8 +123,8 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
             std::io::stdout().flush().unwrap();
             let result = Self::do_encounter(&mut self.players, false);
             match result {
-                1 => results[0] += 1, // X wins, so the first player wins
-                0 => results[1] += 1, // Draw, so no one wins
+                1 => results[0] += 1,  // X wins, so the first player wins
+                0 => results[1] += 1,  // Draw, so no one wins
                 -1 => results[2] += 1, // O wins, so the second player wins
                 _ => panic!("Invalid result"),
             }
@@ -140,8 +140,8 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
             std::io::stdout().flush().unwrap();
             let result = Self::do_encounter(&mut self.players, true);
             match result {
-                1 => results[2] += 1, // X wins, so the second player wins
-                0 => results[1] += 1, // Draw, so no one wins
+                1 => results[2] += 1,  // X wins, so the second player wins
+                0 => results[1] += 1,  // Draw, so no one wins
                 -1 => results[0] += 1, // O wins, so the first player wins
                 _ => panic!("Invalid result"),
             }
@@ -151,7 +151,11 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
                 _ => (),
             }
         }
-        let second_half = [results[0] - first_half[0], results[1] - first_half[1], results[2] - first_half[2]];
+        let second_half = [
+            results[0] - first_half[0],
+            results[1] - first_half[1],
+            results[2] - first_half[2],
+        ];
         println!(" Game {games}/{games}    ");
         println!("{RESET}");
         println!(

@@ -7,7 +7,8 @@ use std::{
 
 use crate::{
     datageneration::{StateVector, VectoriseState},
-    game::{Game, MoveBuffer}, mcts::MCTSExt,
+    game::{Game, MoveBuffer},
+    mcts::MCTSExt,
 };
 
 type Bitrow = u8;

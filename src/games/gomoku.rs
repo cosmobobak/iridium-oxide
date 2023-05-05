@@ -6,7 +6,10 @@ use std::{
     ops::Index,
 };
 
-use crate::{game::{Game, MoveBuffer}, mcts::MCTSExt};
+use crate::{
+    game::{Game, MoveBuffer},
+    mcts::MCTSExt,
+};
 
 // TODO: make a more compact representation of the board
 

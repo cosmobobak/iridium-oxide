@@ -5,7 +5,9 @@ use rand::Rng;
 use std::{
     fmt::Display,
     io::Write,
-    time::{Duration, Instant}, sync::{mpsc, Mutex}, str::FromStr,
+    str::FromStr,
+    sync::{mpsc, Mutex},
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -49,36 +51,61 @@ impl FromStr for RolloutPolicy {
             "random_quality_scaled" => Ok(Self::RandomQualityScaled),
             "decisive_quality_scaled" => Ok(Self::DecisiveQualityScaled),
             s if s.starts_with("random_cutoff") => {
-                let rest = s.split_once('.')
-                    .ok_or_else(|| format!("Invalid rollout policy, no dot separator after random_cutoff: {s}"))?
+                let rest = s
+                    .split_once('.')
+                    .ok_or_else(|| {
+                        format!("Invalid rollout policy, no dot separator after random_cutoff: {s}")
+                    })?
                     .1;
-                let moves = rest.parse::<usize>()
-                    .map_err(|_| format!("Invalid rollout policy, could not parse moves after random_cutoff: {s}"))?;
+                let moves = rest.parse::<usize>().map_err(|_| {
+                    format!(
+                        "Invalid rollout policy, could not parse moves after random_cutoff: {s}"
+                    )
+                })?;
                 Ok(Self::RandomCutoff { moves })
             }
             s if s.starts_with("decisive_cutoff") => {
-                let rest = s.split_once('.')
-                    .ok_or_else(|| format!("Invalid rollout policy, no dot separator after decisive_cutoff: {s}"))?
+                let rest = s
+                    .split_once('.')
+                    .ok_or_else(|| {
+                        format!(
+                            "Invalid rollout policy, no dot separator after decisive_cutoff: {s}"
+                        )
+                    })?
                     .1;
-                let moves = rest.parse::<usize>()
-                    .map_err(|_| format!("Invalid rollout policy, could not parse moves after decisive_cutoff: {s}"))?;
+                let moves = rest.parse::<usize>().map_err(|_| {
+                    format!(
+                        "Invalid rollout policy, could not parse moves after decisive_cutoff: {s}"
+                    )
+                })?;
                 Ok(Self::DecisiveCutoff { moves })
             }
             s if s.starts_with("meta_aggregated") => {
-                let rest = s.split_once('.')
-                    .ok_or_else(|| format!("Invalid rollout policy, no dot separator after meta_aggregated: {s}"))?
+                let rest = s
+                    .split_once('.')
+                    .ok_or_else(|| {
+                        format!(
+                            "Invalid rollout policy, no dot separator after meta_aggregated: {s}"
+                        )
+                    })?
                     .1;
                 let policy = rest.split_once('.')
                     .ok_or_else(|| format!("Invalid rollout policy, no dot separator after meta_aggregated policy: {s}"))?
                     .0;
-                let policy = policy.parse::<Self>()
-                    .map_err(|_| format!("Invalid rollout policy, could not parse policy after meta_aggregated: {s}"))?;
+                let policy = policy.parse::<Self>().map_err(|_| {
+                    format!(
+                        "Invalid rollout policy, could not parse policy after meta_aggregated: {s}"
+                    )
+                })?;
                 let rollouts = rest.split_once('.')
                     .ok_or_else(|| format!("Invalid rollout policy, no dot separator after meta_aggregated rollouts: {s}"))?
                     .1;
                 let rollouts = rollouts.parse::<usize>()
                     .map_err(|_| format!("Invalid rollout policy, could not parse rollouts after meta_aggregated: {s}"))?;
-                Ok(Self::MetaAggregated { policy: Box::new(policy), rollouts })
+                Ok(Self::MetaAggregated {
+                    policy: Box::new(policy),
+                    rollouts,
+                })
             }
             _ => Err(format!("Invalid rollout policy: {s}")),
         }
@@ -127,36 +154,47 @@ impl FromStr for Behaviour {
         };
         // format is "limit=rollouts:50,rollout_policy=random_cutoff.10"
         // or        "limit=time:1000,rollout_policy=meta_aggregated.decisive.10"
-        let (limit, rollout_policy) = s.split_once(',')
+        let (limit, rollout_policy) = s
+            .split_once(',')
             .ok_or_else(|| format!("Invalid behaviour string, no comma separator: {s}"))?;
-        let limit = limit.split_once('=')
-            .ok_or_else(|| format!("Invalid behaviour string, no equals separator in limit: {s}"))?;
-        let rollout_policy = rollout_policy.split_once('=')
-            .ok_or_else(|| format!("Invalid behaviour string, no equals separator in rollout_policy: {s}"))?;
+        let limit = limit.split_once('=').ok_or_else(|| {
+            format!("Invalid behaviour string, no equals separator in limit: {s}")
+        })?;
+        let rollout_policy = rollout_policy.split_once('=').ok_or_else(|| {
+            format!("Invalid behaviour string, no equals separator in rollout_policy: {s}")
+        })?;
         if limit.0 != "limit" {
             return Err(format!("Invalid behaviour string, limit not first: {s}"));
         }
         if rollout_policy.0 != "rollout_policy" {
-            return Err(format!("Invalid behaviour string, rollout_policy not second: {s}"));
+            return Err(format!(
+                "Invalid behaviour string, rollout_policy not second: {s}"
+            ));
         }
-        let limit = limit.1.split_once(':')
+        let limit = limit
+            .1
+            .split_once(':')
             .ok_or_else(|| format!("Invalid behaviour string, no colon separator in limit: {s}"))?;
         let rollout_policy = rollout_policy.1;
         let limit = match limit.0 {
             "rollouts" => {
-                let rollouts = limit.1.parse::<u32>()
-                    .map_err(|_| format!("Invalid behaviour string, could not parse rollouts: {s}"))?;
+                let rollouts = limit.1.parse::<u32>().map_err(|_| {
+                    format!("Invalid behaviour string, could not parse rollouts: {s}")
+                })?;
                 Limit::Rollouts(rollouts)
             }
             "time" => {
-                let time = limit.1.parse::<u64>()
+                let time = limit
+                    .1
+                    .parse::<u64>()
                     .map_err(|_| format!("Invalid behaviour string, could not parse time: {s}"))?;
                 Limit::Time(Duration::from_millis(time))
             }
             _ => return Err(format!("Invalid behaviour string, invalid limit type: {s}")),
         };
-        let rollout_policy = rollout_policy.parse::<RolloutPolicy>()
-            .map_err(|err| format!("Invalid behaviour string, could not parse rollout policy: {err}"))?;
+        let rollout_policy = rollout_policy.parse::<RolloutPolicy>().map_err(|err| {
+            format!("Invalid behaviour string, could not parse rollout policy: {err}")
+        })?;
         behaviour.limit = limit;
         behaviour.rollout_policy = rollout_policy;
         Ok(behaviour)
@@ -220,7 +258,9 @@ impl<'a> SearchInfo<'a> {
         match self.flags.limit {
             Limit::Time(max_duration) => {
                 let now = Instant::now();
-                let elapsed = now.checked_duration_since(self.start_time.unwrap()).unwrap_or_default();
+                let elapsed = now
+                    .checked_duration_since(self.start_time.unwrap())
+                    .unwrap_or_default();
                 elapsed >= max_duration
             }
             Limit::Rollouts(max_rollouts) => rollouts >= max_rollouts,
@@ -385,7 +425,8 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
                     q,
                     self.tree.rollouts(),
                     (f64::from(self.tree.rollouts())
-                        / self.search_info.start_time.unwrap().elapsed().as_secs_f64()) as u64,
+                        / self.search_info.start_time.unwrap().elapsed().as_secs_f64())
+                        as u64,
                     self.tree.pv_string()
                 );
                 std::io::stdout().flush().unwrap();
@@ -405,14 +446,16 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
     /// 2. Expand the selected node.
     /// 3. Simulate the game from the expanded node.
     /// 4. Backpropagate the result of the simulation up the tree.
-    fn select_expand_simulate_backpropagate(
-        &mut self,
-        root: &G,
-    ) {
+    fn select_expand_simulate_backpropagate(&mut self, root: &G) {
         // Each time we perform SESB, we have to walk a position down the tree, making moves as we go.
         let mut traversing_state = root.clone();
 
-        let promising_node_idx = Self::select(ROOT_IDX, &mut self.tree, &self.search_info, &mut traversing_state);
+        let promising_node_idx = Self::select(
+            ROOT_IDX,
+            &mut self.tree,
+            &self.search_info,
+            &mut traversing_state,
+        );
 
         if !traversing_state.is_terminal() {
             self.tree.expand(promising_node_idx, &traversing_state);
@@ -444,11 +487,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
     }
 
     /// SIMULATE: Given a node, simulate the game from that node, and return the resulting Q-value.
-    fn simulate(
-        &mut self,
-        node_idx: usize,
-        rollout_board: &mut G,
-    ) -> f32 {
+    fn simulate(&mut self, node_idx: usize, rollout_board: &mut G) -> f32 {
         use RolloutPolicy::{
             Decisive, DecisiveCutoff, DecisiveQualityScaled, MetaAggregated, Random, RandomCutoff,
             RandomQualityScaled,

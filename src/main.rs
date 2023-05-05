@@ -97,12 +97,36 @@ fn main() {
             let config1 = args.get(4).map(String::as_str);
             let config2 = args.get(5).map(String::as_str);
             match game {
-                Some("connect4") => run_test::<Connect4>(rounds, config1.expect("no config"), config2.expect("no config")),
-                Some("tictactoe") => run_test::<TicTacToe>(rounds, config1.expect("no config"), config2.expect("no config")),
-                Some("gomoku9") => run_test::<Gomoku<9>>(rounds, config1.expect("no config"), config2.expect("no config")),
-                Some("gomoku13") => run_test::<Gomoku<13>>(rounds, config1.expect("no config"), config2.expect("no config")),
-                Some("gomoku19") => run_test::<Gomoku<19>>(rounds, config1.expect("no config"), config2.expect("no config")),
-                Some("chess") => run_test::<Chess>(rounds, config1.expect("no config"), config2.expect("no config")),
+                Some("connect4") => run_test::<Connect4>(
+                    rounds,
+                    config1.expect("no config"),
+                    config2.expect("no config"),
+                ),
+                Some("tictactoe") => run_test::<TicTacToe>(
+                    rounds,
+                    config1.expect("no config"),
+                    config2.expect("no config"),
+                ),
+                Some("gomoku9") => run_test::<Gomoku<9>>(
+                    rounds,
+                    config1.expect("no config"),
+                    config2.expect("no config"),
+                ),
+                Some("gomoku13") => run_test::<Gomoku<13>>(
+                    rounds,
+                    config1.expect("no config"),
+                    config2.expect("no config"),
+                ),
+                Some("gomoku19") => run_test::<Gomoku<19>>(
+                    rounds,
+                    config1.expect("no config"),
+                    config2.expect("no config"),
+                ),
+                Some("chess") => run_test::<Chess>(
+                    rounds,
+                    config1.expect("no config"),
+                    config2.expect("no config"),
+                ),
                 Some("reversi" | "uttt") => todo!(),
                 Some(unknown) => {
                     if unknown != "help" {

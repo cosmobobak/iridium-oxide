@@ -7,7 +7,7 @@ use std::{
 use crate::{
     game::{Game, MoveBuffer},
     gamerunner::GameRunner,
-    mcts::{Behaviour, SearchResults, MCTS, self},
+    mcts::{self, Behaviour, SearchResults, MCTS},
 };
 
 /// A bitvector representation of a single game state.
