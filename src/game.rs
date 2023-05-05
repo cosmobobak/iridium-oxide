@@ -35,8 +35,7 @@ pub trait Game: Clone + Eq + Debug + Display + Default + Send + Sync {
         }
     }
 
-    fn sort_moves(&mut self, moves: &mut Self::Buffer) {
+    fn sort_moves(&mut self, _moves: &mut Self::Buffer) {
         // intentionally does nothing.
-        let _ = moves;
     }
 }

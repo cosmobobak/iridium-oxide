@@ -1,6 +1,9 @@
 use std::{fmt::Display, ops::Index};
 
-use crate::{game::{Game, MoveBuffer}, mcts::{MCTSExt, self}};
+use crate::{
+    game::{Game, MoveBuffer},
+    mcts::{self, MCTSExt},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Chess {
@@ -20,7 +23,10 @@ impl Display for Chess {
         for rank in [7, 6, 5, 4, 3, 2, 1, 0] {
             write!(f, "{} ", rank + 1)?;
             for file in 0..8 {
-                let square = cozy_chess::Square::new(cozy_chess::File::index(file), cozy_chess::Rank::index(rank));
+                let square = cozy_chess::Square::new(
+                    cozy_chess::File::index(file),
+                    cozy_chess::Rank::index(rank),
+                );
                 let Some(piece) = self.inner.piece_on(square) else {
                     write!(f, ". ")?;
                     continue;
@@ -39,64 +45,69 @@ impl Display for Chess {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ChessMove(cozy_chess::Move);
+pub struct Move(cozy_chess::Move);
 
-impl Default for ChessMove {
+impl Default for Move {
     fn default() -> Self {
         Self("a1a1".parse().unwrap())
     }
 }
 
-impl Display for ChessMove {
+impl Display for Move {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl PartialOrd for ChessMove {
+impl PartialOrd for Move {
     fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
         Some(std::cmp::Ordering::Equal)
     }
 }
 
-impl Ord for ChessMove {
+impl Ord for Move {
     fn cmp(&self, _other: &Self) -> std::cmp::Ordering {
         std::cmp::Ordering::Equal
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ChessMoveBuffer{
-    buf: [ChessMove; 218],
+pub struct _MoveBuffer {
+    buf: [Move; 218],
     siz: usize,
 }
 
-impl Default for ChessMoveBuffer {
+impl Default for _MoveBuffer {
     fn default() -> Self {
         Self {
-            buf: [ChessMove::default(); 218],
+            buf: [Move::default(); 218],
             siz: 0,
         }
     }
 }
 
-impl Display for ChessMoveBuffer {
+impl Display for _MoveBuffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let moves = self.buf.iter().take(self.siz).map(ToString::to_string).collect::<Vec<_>>();
+        let moves = self
+            .buf
+            .iter()
+            .take(self.siz)
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
         write!(f, "{}", moves.join(" "))
     }
 }
 
-impl Index<usize> for ChessMoveBuffer {
-    type Output = ChessMove;
+impl Index<usize> for _MoveBuffer {
+    type Output = Move;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.buf[..self.siz][index]
     }
 }
 
-impl MoveBuffer<ChessMove> for ChessMoveBuffer {
-    fn iter(&self) -> std::slice::Iter<ChessMove> {
+impl MoveBuffer<Move> for _MoveBuffer {
+    fn iter(&self) -> std::slice::Iter<Move> {
         self.buf[..self.siz].iter()
     }
 
@@ -108,7 +119,7 @@ impl MoveBuffer<ChessMove> for ChessMoveBuffer {
         self.siz == 0
     }
 
-    fn push(&mut self, m: ChessMove) {
+    fn push(&mut self, m: Move) {
         self.buf[self.siz] = m;
         self.siz += 1;
     }
@@ -119,8 +130,8 @@ impl MoveBuffer<ChessMove> for ChessMoveBuffer {
 }
 
 impl Game for Chess {
-    type Move = ChessMove;
-    type Buffer = ChessMoveBuffer;
+    type Move = Move;
+    type Buffer = _MoveBuffer;
 
     fn turn(&self) -> i8 {
         if self.inner.side_to_move() == cozy_chess::Color::White {
@@ -132,7 +143,7 @@ impl Game for Chess {
 
     fn generate_moves(&self, moves: &mut Self::Buffer) {
         self.inner.generate_moves(|m| {
-            m.into_iter().map(ChessMove).for_each(|m| moves.push(m));
+            m.into_iter().map(Move).for_each(|m| moves.push(m));
             false
         });
     }

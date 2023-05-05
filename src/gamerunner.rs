@@ -91,9 +91,11 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
         }
     }
 
+    /// Returns the result of the encounter, where 1 means X won, -1 means the O won, and 0 means a draw.
+    /// The `flip` parameter indicates whether the players are flipped.
     fn do_encounter(players: &mut [Player<G>; 2], flip: bool) -> i8 {
         let mut state = G::default();
-        let alternator = if flip { 1 } else { -1 };
+        let alternator = if flip { -1 } else { 1 };
         while !state.is_terminal() {
             let turn = state.turn() * alternator;
             let player = match turn {
@@ -103,7 +105,7 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
             };
             state = player.transition(state);
         }
-        state.evaluate() * alternator
+        state.evaluate()
     }
 
     pub fn play_match(&mut self, games: usize) {
@@ -113,7 +115,7 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
 
         println!("Running a {games}-game match...");
         assert_eq!(games % 2, 0, "Number of games must be even");
-        let mut results_1 = [0; 3];
+        let mut results = [0; 3];
         let mut first_player_wins = 0;
         let mut second_player_wins = 0;
         for i in 0..games / 2 {
@@ -121,9 +123,9 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
             std::io::stdout().flush().unwrap();
             let result = Self::do_encounter(&mut self.players, false);
             match result {
-                1 => results_1[0] += 1,
-                0 => results_1[1] += 1,
-                -1 => results_1[2] += 1,
+                1 => results[0] += 1, // X wins, so the first player wins
+                0 => results[1] += 1, // Draw, so no one wins
+                -1 => results[2] += 1, // O wins, so the second player wins
                 _ => panic!("Invalid result"),
             }
             match result {
@@ -132,15 +134,15 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
                 _ => (),
             }
         }
-        let mut results_2 = [0; 3];
+        let first_half = results;
         for i in games / 2..games {
             print!(" Game {}/{games}    \r", i + 1);
             std::io::stdout().flush().unwrap();
             let result = Self::do_encounter(&mut self.players, true);
             match result {
-                1 => results_2[0] += 1,
-                0 => results_2[1] += 1,
-                -1 => results_2[2] += 1,
+                1 => results[2] += 1, // X wins, so the second player wins
+                0 => results[1] += 1, // Draw, so no one wins
+                -1 => results[0] += 1, // O wins, so the first player wins
                 _ => panic!("Invalid result"),
             }
             match result {
@@ -149,16 +151,20 @@ impl<'a, G: Game + Default + MCTSExt> GameRunner<'a, G> {
                 _ => (),
             }
         }
+        let second_half = [results[0] - first_half[0], results[1] - first_half[1], results[2] - first_half[2]];
         println!(" Game {games}/{games}    ");
-        let results = [
-            results_1[0] + results_2[2],
-            results_1[1] + results_2[1],
-            results_1[2] + results_2[0],
-        ];
         println!("{RESET}");
         println!(
             "wins: {GREEN}{}{RESET}, draws: {}, losses: {RED}{}{RESET}",
             results[0], results[1], results[2]
+        );
+        println!(
+            "wins: {GREEN}{}{RESET}, draws: {}, losses: {RED}{}{RESET} (first half)",
+            first_half[0], first_half[1], first_half[2]
+        );
+        println!(
+            "wins: {GREEN}{}{RESET}, draws: {}, losses: {RED}{}{RESET} (second half)",
+            second_half[0], second_half[1], second_half[2]
         );
         println!(
             "going first resulted in {GREEN}{first_player_wins}{RESET} wins, {RED}{second_player_wins}{RESET} losses"
