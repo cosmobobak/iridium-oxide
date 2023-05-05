@@ -7,7 +7,7 @@ use std::{
 use crate::{
     game::{Game, MoveBuffer},
     gamerunner::GameRunner,
-    mcts::{Behaviour, SearchResults, MCTS},
+    mcts::{Behaviour, SearchResults, MCTS, self},
 };
 
 /// A bitvector representation of a single game state.
@@ -116,7 +116,7 @@ impl GameData {
     }
 }
 
-impl<'a, G: VectoriseState> GameRunner<'a, G> {
+impl<'a, G: VectoriseState + mcts::MCTSExt> GameRunner<'a, G> {
     pub fn play_training_game(flags: &Behaviour) -> GameData {
         let mut state = G::default();
         let mut states = Vec::new();

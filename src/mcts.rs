@@ -5,7 +5,7 @@ use rand::Rng;
 use std::{
     fmt::Display,
     io::Write,
-    time::{Duration, Instant}, sync::{mpsc, Mutex},
+    time::{Duration, Instant}, sync::{mpsc, Mutex}, str::FromStr,
 };
 
 use crate::{
@@ -39,6 +39,52 @@ pub enum RolloutPolicy {
     MetaAggregated { policy: Box<Self>, rollouts: usize },
 }
 
+impl FromStr for RolloutPolicy {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "random" => Ok(Self::Random),
+            "decisive" => Ok(Self::Decisive),
+            "random_quality_scaled" => Ok(Self::RandomQualityScaled),
+            "decisive_quality_scaled" => Ok(Self::DecisiveQualityScaled),
+            s if s.starts_with("random_cutoff") => {
+                let rest = s.split_once('.')
+                    .ok_or_else(|| format!("Invalid rollout policy, no dot separator after random_cutoff: {s}"))?
+                    .1;
+                let moves = rest.parse::<usize>()
+                    .map_err(|_| format!("Invalid rollout policy, could not parse moves after random_cutoff: {s}"))?;
+                Ok(Self::RandomCutoff { moves })
+            }
+            s if s.starts_with("decisive_cutoff") => {
+                let rest = s.split_once('.')
+                    .ok_or_else(|| format!("Invalid rollout policy, no dot separator after decisive_cutoff: {s}"))?
+                    .1;
+                let moves = rest.parse::<usize>()
+                    .map_err(|_| format!("Invalid rollout policy, could not parse moves after decisive_cutoff: {s}"))?;
+                Ok(Self::DecisiveCutoff { moves })
+            }
+            s if s.starts_with("meta_aggregated") => {
+                let rest = s.split_once('.')
+                    .ok_or_else(|| format!("Invalid rollout policy, no dot separator after meta_aggregated: {s}"))?
+                    .1;
+                let policy = rest.split_once('.')
+                    .ok_or_else(|| format!("Invalid rollout policy, no dot separator after meta_aggregated policy: {s}"))?
+                    .0;
+                let policy = policy.parse::<Self>()
+                    .map_err(|_| format!("Invalid rollout policy, could not parse policy after meta_aggregated: {s}"))?;
+                let rollouts = rest.split_once('.')
+                    .ok_or_else(|| format!("Invalid rollout policy, no dot separator after meta_aggregated rollouts: {s}"))?
+                    .1;
+                let rollouts = rollouts.parse::<usize>()
+                    .map_err(|_| format!("Invalid rollout policy, could not parse rollouts after meta_aggregated: {s}"))?;
+                Ok(Self::MetaAggregated { policy: Box::new(policy), rollouts })
+            }
+            _ => Err(format!("Invalid rollout policy: {s}")),
+        }
+    }
+}
+
 /// A struct containing all configuration parameters for the MCTS algorithm.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Behaviour {
@@ -65,6 +111,58 @@ impl Default for Behaviour {
     }
 }
 
+impl FromStr for Behaviour {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // debug, readout, rpc, and training are not configurable
+        let mut behaviour = Self {
+            debug: false,
+            readout: false,
+            limit: Limit::Rollouts(1),
+            root_parallelism_count: 1,
+            rollout_policy: RolloutPolicy::Random,
+            exp_factor: DEFAULT_EXP_FACTOR,
+            training: false,
+        };
+        // format is "limit=rollouts:50,rollout_policy=random_cutoff.10"
+        // or        "limit=time:1000,rollout_policy=meta_aggregated.decisive.10"
+        let (limit, rollout_policy) = s.split_once(',')
+            .ok_or_else(|| format!("Invalid behaviour string, no comma separator: {s}"))?;
+        let limit = limit.split_once('=')
+            .ok_or_else(|| format!("Invalid behaviour string, no equals separator in limit: {s}"))?;
+        let rollout_policy = rollout_policy.split_once('=')
+            .ok_or_else(|| format!("Invalid behaviour string, no equals separator in rollout_policy: {s}"))?;
+        if limit.0 != "limit" {
+            return Err(format!("Invalid behaviour string, limit not first: {s}"));
+        }
+        if rollout_policy.0 != "rollout_policy" {
+            return Err(format!("Invalid behaviour string, rollout_policy not second: {s}"));
+        }
+        let limit = limit.1.split_once(':')
+            .ok_or_else(|| format!("Invalid behaviour string, no colon separator in limit: {s}"))?;
+        let rollout_policy = rollout_policy.1;
+        let limit = match limit.0 {
+            "rollouts" => {
+                let rollouts = limit.1.parse::<u32>()
+                    .map_err(|_| format!("Invalid behaviour string, could not parse rollouts: {s}"))?;
+                Limit::Rollouts(rollouts)
+            }
+            "time" => {
+                let time = limit.1.parse::<u64>()
+                    .map_err(|_| format!("Invalid behaviour string, could not parse time: {s}"))?;
+                Limit::Time(Duration::from_millis(time))
+            }
+            _ => return Err(format!("Invalid behaviour string, invalid limit type: {s}")),
+        };
+        let rollout_policy = rollout_policy.parse::<RolloutPolicy>()
+            .map_err(|err| format!("Invalid behaviour string, could not parse rollout policy: {err}"))?;
+        behaviour.limit = limit;
+        behaviour.rollout_policy = rollout_policy;
+        Ok(behaviour)
+    }
+}
+
 impl Display for Behaviour {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
@@ -76,6 +174,15 @@ impl Display for Behaviour {
             self.root_parallelism_count,
             self.rollout_policy
         )
+    }
+}
+
+impl Behaviour {
+    pub fn for_game<G: Game + MCTSExt>() -> Self {
+        Self {
+            rollout_policy: G::rollout_policy(),
+            ..Self::default()
+        }
     }
 }
 
@@ -99,6 +206,7 @@ pub struct SearchInfo<'a> {
 }
 
 impl<'a> SearchInfo<'a> {
+    #[allow(dead_code)]
     pub fn new(stdin_rx: &'a Mutex<mpsc::Receiver<String>>) -> Self {
         Self {
             flags: Behaviour::default(),
@@ -119,6 +227,7 @@ impl<'a> SearchInfo<'a> {
         }
     }
     /// Check if we've run out of time or received a signal from stdin.
+    #[allow(dead_code)]
     fn check_up(&self) -> bool {
         if let Some(rx) = self.stdin_rx {
             let rx = rx.lock().unwrap();
@@ -143,13 +252,16 @@ pub struct MCTS<'a, G: Game> {
     rng: fastrand::Rng,
 }
 
-pub trait MCTSExt<G: Game> {
+pub trait MCTSExt: Game {
     fn rollout_cutoff_length() -> usize {
         100_000
     }
+    fn rollout_policy() -> RolloutPolicy {
+        RolloutPolicy::Random
+    }
 }
 
-impl<'a, G: Game> MCTS<'a, G> {
+impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
     const NODEPOOL_SIZE: usize = MAX_NODEPOOL_MEM / std::mem::size_of::<Node<G>>();
 
     pub fn new(flags: &Behaviour) -> Self {
@@ -448,9 +560,9 @@ impl<'a, G: Game> MCTS<'a, G> {
             let mut buffer = G::Buffer::default();
             playout_board.generate_moves(&mut buffer);
             for &m in buffer.iter() {
-                playout_board.push(m);
+                let mut board_copy = playout_board.clone();
+                board_copy.push(m);
                 let evaluation = playout_board.evaluate();
-                playout_board.pop(m);
                 if evaluation != 0 {
                     return f32::from(evaluation);
                 }
@@ -468,9 +580,9 @@ impl<'a, G: Game> MCTS<'a, G> {
             let mut buffer = G::Buffer::default();
             playout_board.generate_moves(&mut buffer);
             for &m in buffer.iter() {
-                playout_board.push(m);
+                let mut board_copy = playout_board.clone();
+                board_copy.push(m);
                 let evaluation = playout_board.evaluate();
-                playout_board.pop(m);
                 if evaluation != 0 {
                     return f32::from(evaluation) / (moves as f32 + 10.0) * 10.0;
                 }
@@ -510,9 +622,9 @@ impl<'a, G: Game> MCTS<'a, G> {
             let mut buffer = G::Buffer::default();
             playout_board.generate_moves(&mut buffer);
             for &m in buffer.iter() {
-                playout_board.push(m);
+                let mut board_copy = playout_board.clone();
+                board_copy.push(m);
                 let evaluation = playout_board.evaluate();
-                playout_board.pop(m);
                 if evaluation != 0 {
                     return f32::from(evaluation);
                 }

@@ -23,8 +23,9 @@ mod ucb;
 
 use datageneration::VectoriseState;
 use game::Game;
-use Player::{Computer, Human};
 use games::chess::Chess;
+use mcts::MCTSExt;
+use Player::{Computer, Human};
 
 const NAME: &str = "iridium-oxide";
 
@@ -35,49 +36,14 @@ fn main() {
     match args.get(1).map(String::as_str) {
         Some("play") => {
             let game = args.get(2);
+            let player = args.get(3).map(String::as_str);
             match game.map(String::as_str) {
-                Some("connect4") => play::<Connect4>(
-                    &Behaviour::default(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
-                Some("tictactoe") => play::<TicTacToe>(
-                    &Behaviour::default(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
-                Some("gomoku9") => play::<Gomoku<9>>(
-                    &Behaviour::default(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
-                Some("gomoku13") => play::<Gomoku<13>>(
-                    &Behaviour::default(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
-                Some("gomoku19") => play::<Gomoku<19>>(
-                    &Behaviour::default(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
-                Some("chess") => play::<Chess>(
-                    &Behaviour::default(),
-                    args.get(3)
-                        .unwrap_or_else(|| panic!("No side provided."))
-                        .parse()
-                        .unwrap(),
-                ),
+                Some("connect4") => play::<Connect4>(player),
+                Some("tictactoe") => play::<TicTacToe>(player),
+                Some("gomoku9") => play::<Gomoku<9>>(player),
+                Some("gomoku13") => play::<Gomoku<13>>(player),
+                Some("gomoku19") => play::<Gomoku<19>>(player),
+                Some("chess") => play::<Chess>(player),
                 Some("reversi" | "uttt") => todo!(),
                 Some(unknown) => {
                     if unknown != "help" {
@@ -124,10 +90,40 @@ fn main() {
             let secs = start.elapsed().as_secs_f64();
             println!("Generating data took {secs:.2} seconds");
         }
+        Some("match") => {
+            // run match between two configurations
+            let game = args.get(2).map(String::as_str);
+            let rounds = args.get(3).map_or(1, |it| it.parse().unwrap());
+            let config1 = args.get(4).map(String::as_str);
+            let config2 = args.get(5).map(String::as_str);
+            match game {
+                Some("connect4") => run_test::<Connect4>(rounds, config1.expect("no config"), config2.expect("no config")),
+                Some("tictactoe") => run_test::<TicTacToe>(rounds, config1.expect("no config"), config2.expect("no config")),
+                Some("gomoku9") => run_test::<Gomoku<9>>(rounds, config1.expect("no config"), config2.expect("no config")),
+                Some("gomoku13") => run_test::<Gomoku<13>>(rounds, config1.expect("no config"), config2.expect("no config")),
+                Some("gomoku19") => run_test::<Gomoku<19>>(rounds, config1.expect("no config"), config2.expect("no config")),
+                Some("chess") => run_test::<Chess>(rounds, config1.expect("no config"), config2.expect("no config")),
+                Some("reversi" | "uttt") => todo!(),
+                Some(unknown) => {
+                    if unknown != "help" {
+                        eprintln!("Unknown game: {unknown}");
+                    }
+                    println!(
+                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt, chess"
+                    );
+                }
+                None => {
+                    println!(
+                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt, chess"
+                    );
+                }
+            }
+        }
         None => {
             println!("Available commands:");
             println!("1. Play against a the computer ({NAME} play <game> <1|2>)");
             println!("2. Generate data for a game ({NAME} generate <game> <count> <fname>)");
+            println!("3. Run a match between two configurations ({NAME} match <game> <rounds> <config1> <config2>)");
         }
         Some(unknown) => {
             if unknown != "help" {
@@ -136,12 +132,18 @@ fn main() {
             println!("Available commands:");
             println!("1. Play against a the computer ({NAME} play <game> <1|2>)");
             println!("2. Generate data for a game ({NAME} generate <game> <count> <fname>)");
+            println!("3. Run a match between two configurations ({NAME} match <game> <rounds> <config1> <config2>)");
         }
     }
 }
 
-fn play<G: Game>(config: &Behaviour, player: usize) {
+fn play<G: Game + MCTSExt>(player: Option<&str>) {
     println!("iridium-oxide operating at full capacity!");
+    let config = &Behaviour::for_game::<G>();
+    let player = player
+        .unwrap_or_else(|| panic!("No side provided."))
+        .parse()
+        .unwrap();
     match player {
         1 => GameRunner::<G>::new(Human, Computer(MCTS::new(config))).run(),
         2 => GameRunner::<G>::new(Computer(MCTS::new(config)), Human).run(),
@@ -149,7 +151,7 @@ fn play<G: Game>(config: &Behaviour, player: usize) {
     }
 }
 
-fn generate_data<G: VectoriseState>(games: u32, fname: &str) {
+fn generate_data<G: VectoriseState + MCTSExt>(games: u32, fname: &str) {
     let limit = Limit::Rollouts(500_000);
     let config = Behaviour {
         debug: false,
@@ -175,4 +177,13 @@ fn generate_data<G: VectoriseState>(games: u32, fname: &str) {
         .save::<G>(&format!("datasets/{fname}.csv"))
         .expect("failed to write file");
     episode_data.summary();
+}
+
+fn run_test<G: Game + MCTSExt>(rounds: usize, config1: &str, config2: &str) {
+    let behaviour_1: Behaviour = config1.parse().unwrap();
+    let behaviour_2: Behaviour = config2.parse().unwrap();
+    let player_1 = Computer(MCTS::<G>::new(&behaviour_1));
+    let player_2 = Computer(MCTS::<G>::new(&behaviour_2));
+    let mut runner = GameRunner::<G>::new(player_1, player_2);
+    runner.play_match(rounds * 2);
 }
