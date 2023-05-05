@@ -58,7 +58,7 @@ impl Default for Behaviour {
             readout: true,
             limit: Limit::Time(Duration::from_millis(180_000)),
             root_parallelism_count: 1,
-            rollout_policy: RolloutPolicy::DecisiveCutoff { moves: 50 },
+            rollout_policy: RolloutPolicy::RandomCutoff { moves: 10 },
             exp_factor: DEFAULT_EXP_FACTOR,
             training: false,
         }
@@ -248,6 +248,7 @@ impl<'a, G: Game> MCTS<'a, G> {
     }
 
     fn do_treesearch(&mut self, root: &G) {
+        #![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         while !Self::limit_reached(&self.search_info, self.tree.rollouts()) {
             if self.search_info.flags.debug && self.tree.rollouts().is_power_of_two() {
                 print!("{}", self.tree.show_root_distribution(root).unwrap());
@@ -267,10 +268,12 @@ impl<'a, G: Game> MCTS<'a, G> {
                     1.0 - f64::from(self.tree.root().wins()) / f64::from(self.tree.rollouts())
                 };
                 print!(
-                    "info depth {avg_depth} seldepth {} score wdl {:.3} nodes {} pv: {}\r",
+                    "info depth {avg_depth} seldepth {} score wdl {:.3} nodes {} nps {} pv {}\r",
                     self.tree.pv_depth(),
                     q,
                     self.tree.rollouts(),
+                    (f64::from(self.tree.rollouts())
+                        / self.search_info.start_time.unwrap().elapsed().as_secs_f64()) as u64,
                     self.tree.pv_string()
                 );
                 std::io::stdout().flush().unwrap();
@@ -305,7 +308,7 @@ impl<'a, G: Game> MCTS<'a, G> {
 
         let promising_node = unsafe { self.tree.get_unchecked(promising_node_idx) }; // makes borrowchk happy
         let node_to_explore = if promising_node.has_children() {
-            promising_node.random_child()
+            promising_node.random_child(&mut self.rng)
         } else {
             promising_node_idx
         };

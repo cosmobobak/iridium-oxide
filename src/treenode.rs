@@ -2,8 +2,6 @@
 
 use std::{fmt::Display, ops::Range};
 
-use rand::Rng;
-
 use crate::game::Game;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -100,8 +98,8 @@ impl<G: Game> Node<G> {
         self.n_children > 0
     }
 
-    pub fn random_child(&self) -> usize {
-        rand::thread_rng().gen_range(self.children())
+    pub fn random_child(&self, rng: &mut fastrand::Rng) -> usize {
+        rng.usize(self.children())
     }
 }
 
