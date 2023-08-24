@@ -186,7 +186,7 @@ impl MCTSExt for Chess {
 }
 
 impl Chess {
-    pub fn from_raw_board(board: cozy_chess::Board) -> Self {
+    pub const fn from_raw_board(board: cozy_chess::Board) -> Self {
         Self { inner: board }
     }
 }

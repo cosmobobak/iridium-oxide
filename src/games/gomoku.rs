@@ -225,7 +225,7 @@ impl<const N: usize> Display for Gomoku<N> {
         writeln!(f)?;
         for (i, row) in self.board.iter().enumerate() {
             write!(f, "{} ", ROWS[i] as char)?;
-            for &cell in row.iter() {
+            for &cell in row {
                 write!(
                     f,
                     "{}",
@@ -286,7 +286,7 @@ impl<const N: usize> Game for Gomoku<N> {
         assert!(moves.capacity() >= N * N);
         let mut i = 0;
         for row in &self.board {
-            for &cell in row.iter() {
+            for &cell in row {
                 if cell == EMPTY {
                     moves.push(Move::new(i));
                 }
