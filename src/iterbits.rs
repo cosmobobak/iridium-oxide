@@ -23,11 +23,7 @@ impl Iterator for IterBits {
             None
         } else {
             let bit = self.bitboard.trailing_zeros();
-            // clear_lsb() is likely faster than clear(bit) as it's (subtract->and) rather than (shift->not->and)
             self.bitboard &= self.bitboard - 1;
-            // if bit == 0 {
-            //     unsafe { std::hint::unreachable_unchecked(); }
-            // }
             Some(bit as usize)
         }
     }
