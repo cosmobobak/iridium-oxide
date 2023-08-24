@@ -225,6 +225,7 @@ impl Behaviour {
 }
 
 /// A struct containing the results of an MCTS search.
+#[derive(Clone, Debug)]
 pub struct SearchResults<G: Game> {
     pub rollout_distribution: Vec<u32>,
     pub new_node: G,
@@ -236,6 +237,7 @@ pub struct SearchResults<G: Game> {
 /// Information for the MCTS search, including both static config and particular search state.
 #[derive(Clone, Debug)]
 pub struct SearchInfo<'a> {
+    pub quit: bool,
     pub flags: Behaviour,
     pub side: i8,
     pub start_time: Option<Instant>,
@@ -247,6 +249,7 @@ impl<'a> SearchInfo<'a> {
     #[allow(dead_code)]
     pub fn new(stdin_rx: &'a Mutex<mpsc::Receiver<String>>) -> Self {
         Self {
+            quit: false,
             flags: Behaviour::default(),
             side: 1,
             start_time: None,
@@ -307,6 +310,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
     pub fn new(flags: &Behaviour) -> Self {
         Self {
             search_info: SearchInfo {
+                quit: false,
                 flags: flags.clone(),
                 side: 1,
                 start_time: None,

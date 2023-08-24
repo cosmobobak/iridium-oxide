@@ -184,3 +184,9 @@ impl MCTSExt for Chess {
         mcts::RolloutPolicy::DecisiveCutoff { moves: 50 }
     }
 }
+
+impl Chess {
+    pub fn from_raw_board(board: cozy_chess::Board) -> Self {
+        Self { inner: board }
+    }
+}

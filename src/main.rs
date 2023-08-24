@@ -20,6 +20,7 @@ mod mcts;
 mod searchtree;
 mod treenode;
 mod ucb;
+mod ugi;
 
 use datageneration::VectoriseState;
 use game::Game;
@@ -27,7 +28,10 @@ use games::chess::Chess;
 use mcts::MCTSExt;
 use Player::{Computer, Human};
 
-const NAME: &str = "iridium-oxide";
+/// The name of the engine.
+pub static NAME: &str = "Iridium";
+/// The version of the engine.
+pub static VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[allow(clippy::too_many_lines)]
 fn main() {
@@ -143,6 +147,7 @@ fn main() {
                 }
             }
         }
+        Some("uci") => ugi::main(),
         None => {
             println!("Available commands:");
             println!("1. Play against a the computer ({NAME} play <game> <1|2>)");

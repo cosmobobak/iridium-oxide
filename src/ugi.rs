@@ -1,6 +1,8 @@
-use std::{sync::{atomic::{AtomicBool, self}, mpsc, Mutex}, io::Write};
+use std::{sync::{atomic::{AtomicBool, self}, mpsc, Mutex}, io::Write, str::FromStr};
 
-use crate::mcts::{SearchInfo, MCTS};
+use cozy_chess::Board;
+
+use crate::{mcts::{SearchInfo, MCTS, Behaviour}, NAME, VERSION, games::chess::Chess};
 
 static KEEP_RUNNING: AtomicBool = AtomicBool::new(true);
 
@@ -32,9 +34,18 @@ fn stdin_reader_worker(sender: mpsc::Sender<String>) {
     std::mem::drop(sender);
 }
 
+fn print_uci_response() {
+    println!("id name {NAME} {VERSION}");
+    println!("id author Cosmo");
+    println!("uciok");
+}
+
 pub fn main() {
     let stdin = Mutex::new(stdin_reader());
     let mut search_info = SearchInfo::new(&stdin);
+    let behaviour = Behaviour::for_game::<Chess>();
+    let mut engine = MCTS::<Chess>::new(&behaviour);
+    let mut pos = Board::startpos();
     
     loop {
         std::io::stdout().flush().expect("couldn't flush stdout");
@@ -48,33 +59,7 @@ pub fn main() {
         let res = match input {
             "\n" => continue,
             "uci" => {
-                #[cfg(feature = "tuning")]
-                print_uci_response(true);
-                #[cfg(not(feature = "tuning"))]
-                print_uci_response(false);
-                PRETTY_PRINT.store(false, Ordering::SeqCst);
-                Ok(())
-            }
-            "ucifull" => {
-                print_uci_response(true);
-                PRETTY_PRINT.store(false, Ordering::SeqCst);
-                Ok(())
-            }
-            arg @ ("ucidump" | "ucidumpfull") => {
-                // dump the values of the current UCI options
-                println!("Hash: {}", tt.size() / MEGABYTE);
-                println!("Threads: {}", thread_data.len());
-                println!("PrettyPrint: {}", PRETTY_PRINT.load(Ordering::SeqCst));
-                println!("UseNNUE: {}", USE_NNUE.load(Ordering::SeqCst));
-                println!("SyzygyPath: {}", SYZYGY_PATH.lock().expect("failed to lock syzygy path"));
-                println!("SyzygyProbeLimit: {}", SYZYGY_PROBE_LIMIT.load(Ordering::SeqCst));
-                println!("SyzygyProbeDepth: {}", SYZYGY_PROBE_DEPTH.load(Ordering::SeqCst));
-                // println!("MultiPV: {}", MULTI_PV.load(Ordering::SeqCst));
-                if arg == "ucidumpfull" {
-                    for (id, default) in SearchParams::default().ids_with_values() {
-                        println!("{id}: {default}");
-                    }
-                }
+                print_uci_response();
                 Ok(())
             }
             "isready" => {
@@ -82,141 +67,46 @@ pub fn main() {
                 Ok(())
             }
             "quit" => {
-                info.quit = true;
+                search_info.quit = true;
                 break;
             }
-            "ucinewgame" => do_newgame(&mut pos, &tt, &mut thread_data),
-            "eval" => {
-                let eval = if pos.in_check::<{ Board::US }>() {
-                    0
-                } else {
-                    pos.evaluate::<true>(
-                        thread_data.first_mut().expect("the thread headers are empty."),
-                        0,
-                    )
-                };
-                println!("{eval}");
-                Ok(())
-            }
-            "show" => {
-                println!("{pos}");
-                Ok(())
-            }
-            input if input.starts_with("setoption") => {
-                let pre_config = SetOptions {
-                    search_config: get_search_params().clone(),
-                    hash_mb: None,
-                    threads: None,
-                };
-                let res = parse_setoption(input, &mut info, pre_config);
-                match res {
-                    Ok(conf) => {
-                        unsafe {
-                            set_search_params(conf.search_config);
-                        }
-                        if let Some(hash_mb) = conf.hash_mb {
-                            let new_size = hash_mb * MEGABYTE;
-                            tt.resize(new_size);
-                        }
-                        if let Some(threads) = conf.threads {
-                            thread_data = (0..threads).map(ThreadData::new).collect();
-                            for t in &mut thread_data {
-                                t.nnue.refresh_acc(&pos);
-                                t.alloc_tables();
+            "ucinewgame" => Ok(()),
+            input if input.starts_with("position") => {
+                let mut words = input.split_whitespace();
+                match words.nth(1) {
+                    Some("startpos") => {
+                        pos = Board::startpos();
+                        Ok(())
+                    },
+                    Some("fen") => {
+                        let fen = words.next().unwrap();
+                        pos = Board::from_fen(fen, false).unwrap();
+                        if words.next() == Some("moves") {
+                            for m in words {
+                                let mv = cozy_chess::Move::from_str(m).unwrap();
+                                pos.play(mv);
                             }
                         }
                         Ok(())
-                    }
-                    Err(err) => Err(err),
-                }
-            }
-            input if input.starts_with("position") => {
-                let res = parse_position(input, &mut pos);
-                if res.is_ok() {
-                    for t in &mut thread_data {
-                        t.nnue.refresh_acc(&pos);
-                    }
-                }
-                res
-            }
-            input if input.starts_with("go perft") || input.starts_with("perft") => {
-                let tail = input.trim_start_matches("go perft ").trim_start_matches("perft ");
-                match tail.split_whitespace().next() {
-                    Some("divide" | "split") => {
-                        let depth = tail.trim_start_matches("divide ").trim_start_matches("split ");
-                        depth
-                            .parse::<usize>()
-                            .map_err(|_| UciError::InvalidFormat(format!("cannot parse \"{depth}\" as usize")))
-                            .map(|depth| divide_perft(depth, &mut pos))
-                    }
-                    Some(depth) => {
-                        depth
-                            .parse::<usize>()
-                            .map_err(|_| UciError::InvalidFormat(format!("cannot parse \"{depth}\" as usize")))
-                            .map(|depth| block_perft(depth, &mut pos))
-                    }
-                    None => Err(UciError::InvalidFormat(
-                        "expected a depth after 'go perft'".to_string(),
-                    )),
+                    },
+                    _ => Err(Box::new("expected 'startpos' or 'fen' after 'position'")),
                 }
             }
             input if input.starts_with("go") => {
-                let res = parse_go(input, &mut info, &mut pos, get_search_params());
-                if res.is_ok() {
-                    tt.increase_age();
-                    if USE_NNUE.load(Ordering::SeqCst) {
-                        pos.search_position::<true>(&mut info, &mut thread_data, tt.view());
-                    } else {
-                        pos.search_position::<false>(&mut info, &mut thread_data, tt.view());
-                    }
-                }
-                res
-            }
-            benchcmd @ ("bench" | "benchfull") => 'bench: {
-                info.print_to_stdout = false;
-                let mut node_sum = 0u64;
-                for fen in BENCH_POSITIONS {
-                    let res = do_newgame(&mut pos, &tt, &mut thread_data);
-                    if let Err(e) = res {
-                        info.print_to_stdout = true;
-                        break 'bench Err(e);
-                    }
-                    let res = parse_position(&format!("position fen {fen}\n"), &mut pos);
-                    if let Err(e) = res {
-                        info.print_to_stdout = true;
-                        break 'bench Err(e);
-                    }
-                    for t in &mut thread_data {
-                        t.nnue.refresh_acc(&pos);
-                    }
-                    let res = parse_go("go depth 12\n", &mut info, &mut pos, get_search_params());
-                    if let Err(e) = res {
-                        info.print_to_stdout = true;
-                        break 'bench Err(e);
-                    }
-                    tt.increase_age();
-                    if USE_NNUE.load(Ordering::SeqCst) {
-                        pos.search_position::<true>(&mut info, &mut thread_data, tt.view());
-                    } else {
-                        pos.search_position::<false>(&mut info, &mut thread_data, tt.view());
-                    }
-                    node_sum += info.nodes;
-                    if benchcmd == "benchfull" {
-                        println!("{fen} has {} nodes", info.nodes);
-                    }
-                }
-                println!("{node_sum} nodes");
-                info.print_to_stdout = true;
+                let position = Chess::from_raw_board(pos.clone());
+                let search_results = engine.search(&position);
+                eprintln!("info string {search_results:?}");
+                println!("bestmove X");
                 Ok(())
             }
-            _ => Err(UciError::UnknownCommand(input.to_string())),
+            _ => Err(Box::new("unknown command")),
         };
 
         if let Err(e) = res {
             println!("info string {e}");
         }
 
-        if info.quit {
+        if search_info.quit {
             // quit can be set true in parse_go
             break;
         }
