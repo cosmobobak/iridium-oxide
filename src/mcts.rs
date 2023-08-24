@@ -36,6 +36,7 @@ pub enum RolloutPolicy {
     Decisive,
     RandomQualityScaled,
     DecisiveQualityScaled,
+    Gomoku,
     RandomCutoff { moves: usize },
     DecisiveCutoff { moves: usize },
     MetaAggregated { policy: Box<Self>, rollouts: usize },
@@ -129,7 +130,7 @@ impl Default for Behaviour {
         Self {
             debug: false,
             readout: true,
-            limit: Limit::Time(Duration::from_millis(180_000)),
+            limit: Limit::Time(Duration::from_millis(10_000)),
             root_parallelism_count: 1,
             rollout_policy: RolloutPolicy::RandomCutoff { moves: 10 },
             exp_factor: DEFAULT_EXP_FACTOR,
@@ -494,7 +495,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
     fn simulate(&mut self, node_idx: usize, rollout_board: &mut G) -> f32 {
         use RolloutPolicy::{
             Decisive, DecisiveCutoff, DecisiveQualityScaled, MetaAggregated, Random, RandomCutoff,
-            RandomQualityScaled,
+            RandomQualityScaled, Gomoku,
         };
         let node = &self.tree[node_idx];
 
@@ -514,6 +515,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
             Decisive => self.decisive_rollout(rollout_board),
             RandomQualityScaled => self.random_rollout_qs(rollout_board),
             DecisiveQualityScaled => self.decisive_rollout_qs(rollout_board),
+            Gomoku => self.gomoku_rollout(rollout_board),
             RandomCutoff { moves } => self.random_rollout_cutoff(rollout_board, *moves),
             DecisiveCutoff { moves } => Self::decisive_rollout_cutoff(rollout_board, *moves),
             MetaAggregated { policy, rollouts } => {
@@ -523,6 +525,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
                     RolloutPolicy::Decisive => Self::decisive_rollout,
                     RolloutPolicy::RandomQualityScaled => Self::random_rollout_qs,
                     RolloutPolicy::DecisiveQualityScaled => Self::decisive_rollout_qs,
+                    RolloutPolicy::Gomoku => Self::gomoku_rollout,
                     RolloutPolicy::RandomCutoff { .. } => {
                         panic!("MetaAggregated policy cannot be RandomCutoff")
                     }
@@ -557,6 +560,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
         while node.has_children() {
             let children = node.children();
             idx = ucb::best(
+                state,
                 &tree.nodes[children.clone()],
                 node.visits(),
                 search_info.flags.exp_factor,
@@ -573,6 +577,29 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
     fn random_rollout(&mut self, playout_board: &mut G) -> f32 {
         while !playout_board.is_terminal() {
             playout_board.push_random(&mut self.rng);
+        }
+        f32::from(playout_board.evaluate())
+    }
+
+    /// A rollout policy that prefers moves that are closer to pieces already placed on the board.
+    /// Only applicable for some games.
+    fn gomoku_rollout(&mut self, playout_board: &mut G) -> f32 {
+        while !playout_board.is_terminal() {
+            let mut buffer = G::Buffer::default();
+            playout_board.generate_proximates(&mut buffer);
+            if buffer.is_empty() {
+                playout_board.generate_moves(&mut buffer);
+            }
+            for &m in buffer.iter() {
+                let mut board_copy = playout_board.clone();
+                board_copy.push(m);
+                let evaluation = playout_board.evaluate();
+                if evaluation != 0 {
+                    return f32::from(evaluation);
+                }
+            }
+            let idx = self.rng.usize(..buffer.len());
+            playout_board.push(buffer[idx]);
         }
         f32::from(playout_board.evaluate())
     }

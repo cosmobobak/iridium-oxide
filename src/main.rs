@@ -46,6 +46,7 @@ fn main() {
                 Some("tictactoe") => play::<TicTacToe>(player),
                 Some("gomoku9") => play::<Gomoku<9>>(player),
                 Some("gomoku13") => play::<Gomoku<13>>(player),
+                Some("gomoku15") => play::<Gomoku<15>>(player),
                 Some("gomoku19") => play::<Gomoku<19>>(player),
                 Some("chess") => play::<Chess>(player),
                 Some("reversi" | "uttt") => todo!(),
@@ -54,12 +55,12 @@ fn main() {
                         eprintln!("Unknown game: {unknown}");
                     }
                     println!(
-                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt, chess"
+                        "Available games: connect4, tictactoe, gomoku{{9,13,15,19}}, reversi, uttt, chess"
                     );
                 }
                 None => {
                     println!(
-                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt, chess"
+                        "Available games: connect4, tictactoe, gomoku{{9,13,15,19}}, reversi, uttt, chess"
                     );
                 }
             }
@@ -73,7 +74,7 @@ fn main() {
             match game.map(String::as_str) {
                 Some("connect4") => generate_data::<Connect4>(games, fname),
                 Some("tictactoe") => generate_data::<TicTacToe>(games, fname),
-                Some("gomoku9" | "gomoku13" | "gomoku19") => unimplemented!(),
+                Some("gomoku9" | "gomoku13" | "gomoku15" | "gomoku19") => unimplemented!(),
                 Some("reversi" | "uttt") => todo!(),
                 Some(unknown) => {
                     if unknown != "help" {
@@ -121,6 +122,11 @@ fn main() {
                     config1.expect("no config"),
                     config2.expect("no config"),
                 ),
+                Some("gomoku15") => run_test::<Gomoku<15>>(
+                    rounds,
+                    config1.expect("no config"),
+                    config2.expect("no config"),
+                ),
                 Some("gomoku19") => run_test::<Gomoku<19>>(
                     rounds,
                     config1.expect("no config"),
@@ -137,12 +143,12 @@ fn main() {
                         eprintln!("Unknown game: {unknown}");
                     }
                     println!(
-                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt, chess"
+                        "Available games: connect4, tictactoe, gomoku{{9,13,15,19}}, reversi, uttt, chess"
                     );
                 }
                 None => {
                     println!(
-                        "Available games: connect4, tictactoe, gomoku{{9,13,19}}, reversi, uttt, chess"
+                        "Available games: connect4, tictactoe, gomoku{{9,13,15,19}}, reversi, uttt, chess"
                     );
                 }
             }

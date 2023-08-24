@@ -3,6 +3,8 @@ use std::{
     ops::Index,
 };
 
+use crate::treenode::Node;
+
 pub trait MoveBuffer<Move>: Debug + Default + Index<usize, Output = Move> + Display {
     fn iter(&self) -> std::slice::Iter<Move>;
     fn len(&self) -> usize;
@@ -37,5 +39,14 @@ pub trait Game: Clone + Eq + Debug + Display + Default + Send + Sync {
 
     fn sort_moves(&mut self, _moves: &mut Self::Buffer) {
         // intentionally does nothing.
+    }
+
+    fn generate_proximates(&self, _moves: &mut Self::Buffer) {
+        // intentionally does nothing.
+    }
+
+    fn policy(&self, _node: &Node<Self>) -> f64 {
+        // default policy is uniform random.
+        1.0
     }
 }

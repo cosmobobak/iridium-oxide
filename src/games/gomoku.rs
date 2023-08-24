@@ -140,6 +140,10 @@ impl<const N: usize> Gomoku<N> {
 
         false
     }
+
+    const fn in_bounds(row: isize, col: isize) -> bool {
+        row >= 0 && row < Self::N_I && col >= 0 && col < Self::N_I
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -294,6 +298,31 @@ impl<const N: usize> Game for Gomoku<N> {
             }
         }
     }
+    
+    fn generate_proximates(&self, moves: &mut Self::Buffer) {
+        // generate all the squares that are adjacent to an existing piece
+        let mut i = 0;
+        for row in &self.board {
+            for &cell in row {
+                if cell != EMPTY {
+                    // found a filled space, try to add the adjacent spaces
+                    let row = i / N as isize;
+                    let col = i % N as isize;
+                    for dx in -1..=1 {
+                        for dy in -1..=1 {
+                            if (dx != 0 || dy != 0) && Self::in_bounds(row + dx, col + dy) {
+                                let index = (row + dx) as usize * N + (col + dy) as usize;
+                                if self.board[index / N][index % N] == EMPTY {
+                                    moves.push(Move::new(index));
+                                }
+                            }
+                        }
+                    }
+                }
+                i += 1;
+            }
+        }
+    }
 
     fn push_random(&mut self, rng: &mut fastrand::Rng) {
         let mut moves = Buffer::new();
@@ -301,6 +330,31 @@ impl<const N: usize> Game for Gomoku<N> {
         let index = rng.usize(..moves.len());
         self.push(moves[index]);
     }
+
+    fn policy(&self, node: &crate::treenode::Node<Self>) -> f64 {
+        #![allow(clippy::cast_possible_truncation)]
+        let move_that_lead_to_it = node.inbound_edge();
+        let target_sq = move_that_lead_to_it.loc;
+        // if the target square is adjacent to an existing piece, it's a good move
+        let row = target_sq / N as u16;
+        let col = target_sq % N as u16;
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                if (dx != 0 || dy != 0) && Self::in_bounds(row as isize + dx, col as isize + dy) {
+                    let index = (row as isize + dx) as usize * N + (col as isize + dy) as usize;
+                    if self.board[index / N][index % N] != EMPTY {
+                        return 3.0;
+                    }
+                }
+            }
+        }
+        // otherwise, it's a bad move
+        1.0
+    }
 }
 
-impl<const N: usize> MCTSExt for Gomoku<N> {}
+impl<const N: usize> MCTSExt for Gomoku<N> {
+    fn rollout_policy() -> crate::mcts::RolloutPolicy {
+        crate::mcts::RolloutPolicy::Gomoku
+    }
+}
