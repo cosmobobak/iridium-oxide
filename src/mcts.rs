@@ -461,7 +461,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
             self.tree.expand(promising_node_idx, &traversing_state);
         }
 
-        let promising_node = unsafe { self.tree.get_unchecked(promising_node_idx) }; // makes borrowchk happy
+        let promising_node = self.tree.get(promising_node_idx).unwrap();
         let node_to_explore = if promising_node.has_children() {
             promising_node.random_child(&mut self.rng)
         } else {
@@ -479,7 +479,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
         loop {
             node.update(q);
             if let Some(parent_idx) = node.parent() {
-                node = unsafe { tree.get_unchecked_mut(parent_idx) };
+                node = tree.get_mut(parent_idx).unwrap();
             } else {
                 break;
             }

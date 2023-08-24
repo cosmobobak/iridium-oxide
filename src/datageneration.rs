@@ -145,7 +145,7 @@ impl<'a, G: VectoriseState + mcts::MCTSExt> GameRunner<'a, G> {
         #[allow(clippy::cast_possible_truncation)]
         let entries = states
             .into_iter()
-            .zip(policies.into_iter())
+            .zip(policies)
             .enumerate()
             .map(|(i, (s, p))| Entry {
                 outcome,

@@ -122,7 +122,7 @@ impl<G: Game> SearchTree<G> {
         // SAFETY: we know that the children are valid indices
         // because children.end <= self.nodes.len()
         children
-            .max_by_key(|&i| unsafe { self.nodes.get_unchecked(i).visits() })
+            .max_by_key(|&i| self.nodes.get(i).unwrap().visits())
             .expect("Node has no children")
     }
 
@@ -141,11 +141,8 @@ impl<G: Game> SearchTree<G> {
             self.nodes
                 .push(Node::new(-movegen_board.turn(), Some(idx), *m));
         }
-        // SAFETY: we have already accessed this location in the vector
-        // and we do not reduce the size of the vector between the accesses.
-        // The only reason that we are re-accessing at all is to satisfy borrowchk,
-        // as we know that the Vec will not realloc, so holding references is safe.
-        let node = unsafe { self.nodes.get_unchecked_mut(idx) };
+        
+        let node = self.nodes.get_mut(idx).expect("Node does not exist");
         node.add_children(start, move_buffer.len());
     }
 
@@ -186,21 +183,12 @@ impl<G: Game> SearchTree<G> {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn get(&self, idx: usize) -> Option<&Node<G>> {
         self.nodes.get(idx)
     }
 
     pub fn get_mut(&mut self, idx: usize) -> Option<&mut Node<G>> {
         self.nodes.get_mut(idx)
-    }
-
-    pub unsafe fn get_unchecked(&self, idx: usize) -> &Node<G> {
-        self.nodes.get_unchecked(idx)
-    }
-
-    pub unsafe fn get_unchecked_mut(&mut self, idx: usize) -> &mut Node<G> {
-        self.nodes.get_unchecked_mut(idx)
     }
 
     pub fn pv_string(&self) -> String {
