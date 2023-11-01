@@ -475,7 +475,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
 
         let promising_node_idx = Self::select(
             ROOT_IDX,
-            &mut self.tree,
+            &self.tree,
             &self.search_info,
             &mut traversing_state,
         );
@@ -486,7 +486,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
 
         let promising_node = self.tree.get(promising_node_idx).unwrap();
         let node_to_explore = if promising_node.has_children() {
-            promising_node.random_child(&mut self.rng)
+            promising_node.random_child(&self.rng)
         } else {
             promising_node_idx
         };
@@ -569,7 +569,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
     /// moves as we go.
     fn select(
         root_idx: usize,
-        tree: &mut SearchTree<G>,
+        tree: &SearchTree<G>,
         search_info: &SearchInfo,
         state: &mut G,
     ) -> usize {

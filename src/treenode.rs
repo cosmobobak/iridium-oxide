@@ -98,7 +98,7 @@ impl<G: Game> Node<G> {
         self.n_children > 0
     }
 
-    pub fn random_child(&self, rng: &mut fastrand::Rng) -> usize {
+    pub fn random_child(&self, rng: &fastrand::Rng) -> usize {
         rng.usize(self.children())
     }
 }
