@@ -130,7 +130,7 @@ impl Default for Behaviour {
     fn default() -> Self {
         Self {
             debug: false,
-            readout: false,
+            readout: true,
             log: false,
             limit: Limit::Time(Duration::from_millis(1_000)),
             root_parallelism_count: 1,

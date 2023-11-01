@@ -8,7 +8,7 @@ use std::{
 
 use crate::{
     game::{Game, MoveBuffer},
-    mcts::MCTSExt,
+    mcts::MCTSExt, datageneration::VectoriseState,
 };
 
 // TODO: make a more compact representation of the board
@@ -356,5 +356,42 @@ impl<const N: usize> Game for Gomoku<N> {
 impl<const N: usize> MCTSExt for Gomoku<N> {
     fn rollout_policy() -> crate::mcts::RolloutPolicy {
         crate::mcts::RolloutPolicy::Gomoku
+    }
+}
+
+impl<const N: usize> VectoriseState for Gomoku<N> {
+    fn csv_header() -> String {
+        String::new()
+    }
+
+    fn vectorise_state(&self) -> crate::datageneration::StateVector {
+        let mut v: Vec<u8> = Vec::with_capacity(N * N * 2);
+
+        for row in &self.board {
+            for &cell in row {
+                v.push(u8::from(cell == X));
+            }
+        }
+        for row in &self.board {
+            for &cell in row {
+                v.push(u8::from(cell == O));
+            }
+        }
+
+        assert_eq!(v.len(), N * N * 2);
+
+        crate::datageneration::StateVector { data: v }
+    }
+
+    fn index_move(m: Self::Move) -> usize {
+        m.loc as usize
+    }
+
+    fn action_space() -> usize {
+        N * N
+    }
+
+    fn state_vector_dimensions() -> Vec<usize> {
+        vec![N, N, 2]
     }
 }

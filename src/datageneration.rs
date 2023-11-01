@@ -123,6 +123,11 @@ impl<'a, G: VectoriseState + mcts::MCTSExt> GameRunner<'a, G> {
         let mut policies = Vec::new();
         let mut engine = MCTS::new(flags);
         while !state.is_terminal() {
+            // clear the terminal
+            print!("\x1B[2J\x1B[1;1H");
+            println!("{state}");
+            println!("Thinking...");
+            
             let s = state;
             let SearchResults {
                 rollout_distribution,

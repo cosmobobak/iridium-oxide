@@ -74,7 +74,15 @@ fn main() {
             match game.map(String::as_str) {
                 Some("connect4") => generate_data::<Connect4>(games, fname),
                 Some("tictactoe") => generate_data::<TicTacToe>(games, fname),
-                Some("gomoku9" | "gomoku13" | "gomoku15" | "gomoku19") => unimplemented!(),
+                Some(g @ ("gomoku9" | "gomoku13" | "gomoku15" | "gomoku19")) => {
+                    match g {
+                        "gomoku9" => generate_data::<Gomoku<9>>(games, fname),
+                        "gomoku13" => generate_data::<Gomoku<13>>(games, fname),
+                        "gomoku15" => generate_data::<Gomoku<15>>(games, fname),
+                        "gomoku19" => generate_data::<Gomoku<19>>(games, fname),
+                        _ => unreachable!(),
+                    }
+                }
                 Some("reversi" | "uttt") => todo!(),
                 Some(unknown) => {
                     if unknown != "help" {
@@ -187,7 +195,7 @@ fn play<G: Game + MCTSExt>(player: Option<&str>) {
 }
 
 fn generate_data<G: VectoriseState + MCTSExt>(games: u32, fname: &str) {
-    let limit = Limit::Rollouts(500_000);
+    let limit = Limit::Rollouts(800);
     let config = Behaviour {
         debug: false,
         readout: false,
@@ -200,15 +208,15 @@ fn generate_data<G: VectoriseState + MCTSExt>(games: u32, fname: &str) {
     };
 
     let episode_data = (0..games)
-        .map(|it| {
+        .map(|_it| {
             // print progress bar
-            print!("{:.2}%     \r", f64::from(it) * 100.0 / f64::from(games));
-            std::io::stdout().flush().unwrap();
+            // print!("{:.2}%     \r", f64::from(it) * 100.0 / f64::from(games));
+            // std::io::stdout().flush().unwrap();
             GameRunner::<G>::play_training_game(&config)
         })
         .reduce(|a, b| a + b)
         .expect("failed to generate training data");
-    println!("100%     ");
+    // println!("100%     ");
     episode_data
         .save::<G>(&format!("datasets/{fname}.csv"))
         .expect("failed to write file");
