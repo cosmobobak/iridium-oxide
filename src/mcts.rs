@@ -131,10 +131,10 @@ impl Default for Behaviour {
         Self {
             debug: false,
             readout: false,
-            log: true,
-            limit: Limit::Time(Duration::from_millis(120_000)),
+            log: false,
+            limit: Limit::Time(Duration::from_millis(1_000)),
             root_parallelism_count: 1,
-            rollout_policy: RolloutPolicy::RandomCutoff { moves: 10 },
+            rollout_policy: RolloutPolicy::Random,
             exp_factor: DEFAULT_EXP_FACTOR,
             training: false,
         }
