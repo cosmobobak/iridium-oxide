@@ -118,6 +118,7 @@ impl FromStr for RolloutPolicy {
 pub struct Behaviour {
     pub debug: bool,
     pub readout: bool,
+    pub log: bool,
     pub limit: Limit,
     pub root_parallelism_count: usize,
     pub rollout_policy: RolloutPolicy,
@@ -129,8 +130,9 @@ impl Default for Behaviour {
     fn default() -> Self {
         Self {
             debug: false,
-            readout: true,
-            limit: Limit::Time(Duration::from_millis(10_000)),
+            readout: false,
+            log: true,
+            limit: Limit::Time(Duration::from_millis(120_000)),
             root_parallelism_count: 1,
             rollout_policy: RolloutPolicy::RandomCutoff { moves: 10 },
             exp_factor: DEFAULT_EXP_FACTOR,
@@ -147,6 +149,7 @@ impl FromStr for Behaviour {
         let mut behaviour = Self {
             debug: false,
             readout: false,
+            log: false,
             limit: Limit::Rollouts(1),
             root_parallelism_count: 1,
             rollout_policy: RolloutPolicy::Random,
@@ -406,6 +409,8 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
 
     fn do_treesearch(&mut self, root: &G) {
         #![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let log_file = std::fs::File::create("log.txt").unwrap();
+        let mut log_file = std::io::BufWriter::new(log_file);
         while !Self::limit_reached(&self.search_info, self.tree.rollouts()) {
             if self.search_info.flags.debug && self.tree.rollouts().is_power_of_two() {
                 print!("{}", self.tree.show_root_distribution(root).unwrap());
@@ -435,6 +440,19 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
                     self.tree.pv_string()
                 );
                 std::io::stdout().flush().unwrap();
+            } else if self.search_info.flags.log && self.tree.rollouts() % 512 == 0 {
+                // print policy as an array
+                let rdist = self.tree.root_rollout_distribution();
+                let sum = rdist.iter().copied().map(u64::from).sum::<u64>();
+                let policy = rdist
+                    .iter()
+                    .copied()
+                    .map(u64::from)
+                    .map(|x| x as f64 / sum as f64);
+                for p in policy {
+                    write!(log_file, "{p:.3}, ").unwrap();
+                }
+                writeln!(log_file).unwrap();
             }
             self.select_expand_simulate_backpropagate(root);
             self.tree.inc_rollouts();

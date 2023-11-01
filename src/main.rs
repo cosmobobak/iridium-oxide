@@ -191,6 +191,7 @@ fn generate_data<G: VectoriseState + MCTSExt>(games: u32, fname: &str) {
     let config = Behaviour {
         debug: false,
         readout: false,
+        log: false,
         limit,
         root_parallelism_count: 1,
         rollout_policy: RolloutPolicy::Random,
