@@ -2,7 +2,7 @@ use std::{fmt::Display, ops::Index};
 
 use crate::{
     game::{Game, MoveBuffer},
-    mcts::{self, MCTSExt},
+    mcts::{self, MCTSExt}, datageneration::{VectoriseState, StateVector},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -188,5 +188,27 @@ impl MCTSExt for Chess {
 impl Chess {
     pub const fn from_raw_board(board: cozy_chess::Board) -> Self {
         Self { inner: board }
+    }
+}
+
+impl VectoriseState for Chess {
+    fn csv_header() -> String {
+        String::new()
+    }
+
+    fn vectorise_state(&self) -> crate::datageneration::StateVector {
+        StateVector { data: Vec::new() }
+    }
+
+    fn index_move(_m: Self::Move) -> usize {
+        0
+    }
+
+    fn action_space() -> usize {
+        1
+    }
+
+    fn state_vector_dimensions() -> Vec<usize> {
+        vec![1]
     }
 }

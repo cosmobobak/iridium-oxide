@@ -1,6 +1,6 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 
-use std::{io::Write, time::Instant};
+use std::time::Instant;
 
 use crate::{
     gamerunner::{GameRunner, Player},
@@ -21,6 +21,7 @@ mod searchtree;
 mod treenode;
 mod ucb;
 mod ugi;
+mod record;
 
 use datageneration::VectoriseState;
 use game::Game;
@@ -84,6 +85,7 @@ fn main() {
                     }
                 }
                 Some("reversi" | "uttt") => todo!(),
+                Some("chess") => generate_data::<Chess>(games, fname),
                 Some(unknown) => {
                     if unknown != "help" {
                         eprintln!("Unknown game: {unknown}");
@@ -195,7 +197,7 @@ fn play<G: Game + MCTSExt>(player: Option<&str>) {
 }
 
 fn generate_data<G: VectoriseState + MCTSExt>(games: u32, fname: &str) {
-    let limit = Limit::Rollouts(800);
+    let limit = Limit::Rollouts(100_000);
     let config = Behaviour {
         debug: false,
         readout: false,

@@ -298,37 +298,27 @@ impl<const N: usize> Game for Gomoku<N> {
             }
         }
     }
-    
-    fn generate_proximates(&self, moves: &mut Self::Buffer) {
-        // generate all the squares that are adjacent to an existing piece
-        let mut i = 0;
-        for row in &self.board {
-            for &cell in row {
-                if cell != EMPTY {
-                    // found a filled space, try to add the adjacent spaces
-                    let row = i / N as isize;
-                    let col = i % N as isize;
-                    for dx in -1..=1 {
-                        for dy in -1..=1 {
-                            if (dx != 0 || dy != 0) && Self::in_bounds(row + dx, col + dy) {
-                                let index = (row + dx) as usize * N + (col + dy) as usize;
-                                if self.board[index / N][index % N] == EMPTY {
-                                    moves.push(Move::new(index));
-                                }
-                            }
-                        }
-                    }
-                }
-                i += 1;
-            }
-        }
-    }
 
     fn push_random(&mut self, rng: &mut fastrand::Rng) {
-        let mut moves = Buffer::new();
-        self.generate_moves(&mut moves);
-        let index = rng.usize(..moves.len());
-        self.push(moves[index]);
+        #![allow(clippy::cast_precision_loss)]
+        let filled_factor = self.moves as f64 / (N * N) as f64;
+        // if the board is mostly full, generate moves and then select.
+        // otherwise, just guess moves until we find an empty square.
+        if filled_factor > 0.95 {
+            let mut moves = Buffer::new();
+            self.generate_moves(&mut moves);
+            let index = rng.usize(..moves.len());
+            return self.push(moves[index]);
+        }
+        // we expect this loop to run only a few times
+        // (at most 95% of the board is full, so we expect to find an empty square in 20 tries)
+        let index = loop {
+            let index = rng.usize(..N * N);
+            if self.board[index / N][index % N] == EMPTY {
+                break index;
+            }
+        };
+        self.push(Move::new(index));
     }
 
     fn policy(&self, node: &crate::treenode::Node<Self>) -> f64 {
@@ -350,12 +340,6 @@ impl<const N: usize> Game for Gomoku<N> {
         }
         // otherwise, it's a bad move
         1.0
-    }
-}
-
-impl<const N: usize> MCTSExt for Gomoku<N> {
-    fn rollout_policy() -> crate::mcts::RolloutPolicy {
-        crate::mcts::RolloutPolicy::Gomoku
     }
 }
 
@@ -395,3 +379,5 @@ impl<const N: usize> VectoriseState for Gomoku<N> {
         vec![N, N, 2]
     }
 }
+
+impl<const N: usize> MCTSExt for Gomoku<N> {}

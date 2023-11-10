@@ -41,10 +41,6 @@ pub trait Game: Clone + Eq + Debug + Display + Default + Send + Sync {
         // intentionally does nothing.
     }
 
-    fn generate_proximates(&self, _moves: &mut Self::Buffer) {
-        // intentionally does nothing.
-    }
-
     fn policy(&self, _node: &Node<Self>) -> f64 {
         // default policy is uniform random.
         1.0
