@@ -55,6 +55,38 @@ impl Debug for Entry {
     }
 }
 
+/// Display-wrapper for Entry that prints the input for prediction.
+struct X<'a>(&'a Entry);
+
+impl Display for X<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let l = self.0.state.data.len();
+        for (i, v) in self.0.state.data.iter().enumerate() {
+            write!(f, "{v}")?;
+            if i + 1 != l {
+                write!(f, ",")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Display-wrapper for Entry that prints the output for prediction.
+struct Y<'a>(&'a Entry);
+
+impl Display for Y<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let l = self.0.policy.data.len();
+        for (i, v) in self.0.policy.data.iter().enumerate() {
+            write!(f, "{v:.3}")?;
+            if i + 1 != l {
+                write!(f, ",")?;
+            }
+        }
+        Ok(())
+    }
+}
+
 pub trait VectoriseState: Game {
     fn csv_header() -> String;
     fn vectorise_state(&self) -> StateVector;
@@ -86,19 +118,16 @@ pub struct GameData {
 }
 
 impl GameData {
-    pub fn save<G: VectoriseState>(&self, filename: &str) -> Result<(), std::io::Error> {
+    pub fn save<G: VectoriseState>(&self, id: &str) -> Result<(), std::io::Error> {
         use std::io::Write;
-        match File::create(filename) {
-            Ok(mut file) => {
-                let header = G::csv_header();
-                writeln!(file, "{header}")?;
-                for entry in &self.entries {
-                    writeln!(file, "{entry}")?;
-                }
-                Ok(())
-            }
-            Err(e) => panic!("could not create data save file: {e}"),
+        std::fs::create_dir_all("datasets")?;
+        let mut file_x = File::create(format!("datasets/{id}-x.txt"))?;
+        let mut file_y = File::create(format!("datasets/{id}-y.txt"))?;
+        for entry in &self.entries {
+            writeln!(file_x, "{}", X(entry))?;
+            writeln!(file_y, "{}", Y(entry))?;
         }
+        Ok(())
     }
 
     pub fn summary(&self) {

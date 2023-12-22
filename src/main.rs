@@ -196,8 +196,8 @@ fn play<G: Game + MCTSExt>(player: Option<&str>) {
     }
 }
 
-fn generate_data<G: VectoriseState + MCTSExt>(games: u32, fname: &str) {
-    let limit = Limit::Rollouts(100_000);
+fn generate_data<G: VectoriseState + MCTSExt>(games: u32, id: &str) {
+    let limit = Limit::Rollouts(8_000);
     let config = Behaviour {
         debug: false,
         readout: false,
@@ -220,7 +220,7 @@ fn generate_data<G: VectoriseState + MCTSExt>(games: u32, fname: &str) {
         .expect("failed to generate training data");
     // println!("100%     ");
     episode_data
-        .save::<G>(&format!("datasets/{fname}.csv"))
+        .save::<G>(id)
         .expect("failed to write file");
     episode_data.summary();
 }
