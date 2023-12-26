@@ -5,3 +5,7 @@
 *tfevents*
 /supervised_learning/__pycache__
 images/
+flamegraph.svg
+perf.data
+perf.data.old
+datasets/

@@ -121,7 +121,7 @@ pub struct Behaviour {
     pub limit: Limit,
     pub root_parallelism_count: usize,
     pub rollout_policy: RolloutPolicy,
-    pub exp_factor: f64,
+    pub exp_factor: f32,
     pub training: bool,
 }
 
@@ -496,6 +496,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
     }
 
     /// BACKPROPAGATE: Given a node and a Q-value, backpropagate the Q-value up the tree.
+    #[inline(never)]
     fn backprop(node_idx: usize, q: f32, tree: &mut SearchTree<G>) {
         let mut node = tree.get_mut(node_idx).expect("called backprop on root");
         loop {
@@ -509,6 +510,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
     }
 
     /// SIMULATE: Given a node, simulate the game from that node, and return the resulting Q-value.
+    #[inline(never)]
     fn simulate(&mut self, node_idx: usize, rollout_board: &mut G) -> f32 {
         use RolloutPolicy::{
             Decisive, DecisiveCutoff, DecisiveQualityScaled, MetaAggregated, Random, RandomCutoff,
@@ -564,6 +566,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
     /// SELECT: we traverse the on-policy (in-memory) part of the tree, at each node we select the child
     /// with the highest UCB1 value. As we do not store states in the tree, we have to push
     /// moves as we go.
+    #[inline(never)]
     fn select(
         root_idx: usize,
         tree: &SearchTree<G>,
@@ -701,6 +704,7 @@ impl<'a, G: Game + MCTSExt> MCTS<'a, G> {
 }
 
 fn sample_move_index_from_rollouts(fused_distribution: &[u32]) -> usize {
+    return fused_distribution.iter().enumerate().max_by_key(|(i, v)| **v).unwrap().0;
     let total_rollouts = fused_distribution.iter().sum::<u32>();
     let prob_vector = fused_distribution
         .iter()

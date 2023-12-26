@@ -41,7 +41,7 @@ pub trait Game: Clone + Eq + Debug + Display + Default + Send + Sync {
         // intentionally does nothing.
     }
 
-    fn policy(&self, _node: &Node<Self>) -> f64 {
+    fn policy(&self, _node: &Node<Self>) -> f32 {
         // default policy is uniform random.
         1.0
     }

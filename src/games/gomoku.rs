@@ -321,7 +321,7 @@ impl<const N: usize> Game for Gomoku<N> {
         self.push(Move::new(index));
     }
 
-    fn policy(&self, node: &crate::treenode::Node<Self>) -> f64 {
+    fn policy(&self, node: &crate::treenode::Node<Self>) -> f32 {
         #![allow(clippy::cast_possible_truncation)]
         let move_that_lead_to_it = node.inbound_edge();
         let target_sq = move_that_lead_to_it.loc;

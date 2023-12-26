@@ -126,6 +126,7 @@ impl<G: Game> SearchTree<G> {
             .expect("Node has no children")
     }
 
+    #[inline(never)]
     pub fn expand(&mut self, idx: usize, movegen_board: &G) {
         let start = self.nodes.len();
         let node = self.nodes.get_mut(idx).expect("Node does not exist");

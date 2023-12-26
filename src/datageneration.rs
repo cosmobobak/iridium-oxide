@@ -7,7 +7,7 @@ use std::{
 use crate::{
     game::{Game, MoveBuffer},
     gamerunner::GameRunner,
-    mcts::{self, Behaviour, SearchResults, MCTS},
+    mcts::{self, Behaviour, SearchResults, MCTS, Limit},
 };
 
 /// A bitvector representation of a single game state.
@@ -153,9 +153,9 @@ impl<'a, G: VectoriseState + mcts::MCTSExt> GameRunner<'a, G> {
         let mut engine = MCTS::new(flags);
         while !state.is_terminal() {
             // clear the terminal
-            print!("\x1B[2J\x1B[1;1H");
-            println!("{state}");
-            println!("Thinking...");
+            // print!("\x1B[2J\x1B[1;1H");
+            // println!("{state}");
+            // println!("Thinking...");
             
             let s = state;
             let SearchResults {
@@ -165,6 +165,10 @@ impl<'a, G: VectoriseState + mcts::MCTSExt> GameRunner<'a, G> {
                 rollouts,
                 win_rate: _,
             } = engine.search(&s);
+            assert!(match flags.limit {
+                Limit::Time(_) => true,
+                Limit::Rollouts(x) => x == rollouts,
+            });
             let legal_policy = rollout_distribution
                 .into_iter()
                 .map(|rs| f64::from(rs) / f64::from(rollouts))
@@ -199,14 +203,11 @@ impl<'a, G: VectoriseState + mcts::MCTSExt> GameRunner<'a, G> {
 impl Add for GameData {
     type Output = Self;
 
-    fn add(self, other: Self) -> Self::Output {
+    fn add(self, mut other: Self) -> Self::Output {
         assert_eq!(self.state_dimensions, other.state_dimensions);
         assert_eq!(self.action_space, other.action_space);
         let mut entries = self.entries;
-        entries.extend(other.entries);
-        // remove duplicate states
-        entries.sort_unstable_by(|a, b| a.state.data.cmp(&b.state.data));
-        entries.dedup_by(|a, b| a.state.data == b.state.data);
+        entries.append(&mut other.entries);
         Self {
             entries,
             state_dimensions: self.state_dimensions.clone(),

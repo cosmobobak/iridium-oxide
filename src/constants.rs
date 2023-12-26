@@ -5,5 +5,5 @@ pub const ROOT_IDX: usize = 0;
 pub const INF: i32 = i32::max_value();
 pub const N_INF: i32 = -INF;
 
-pub const DEFAULT_EXP_FACTOR: f64 = std::f64::consts::SQRT_2;
-pub const NODE_UNVISITED_VALUE: f64 = f64::MAX;
+pub const DEFAULT_EXP_FACTOR: f32 = std::f32::consts::SQRT_2;
+pub const NODE_UNVISITED_VALUE: f32 = f32::MAX;
